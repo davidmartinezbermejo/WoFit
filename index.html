@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Analizador FIT - Comparador de Rutas</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #f0f2f5; color: #333; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        #map { height: 450px; margin: 20px 0; border-radius: 8px; border: 2px solid #ddd; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; background: #e9ecef; padding: 15px; border-radius: 8px; }
+        .results { font-weight: bold; font-size: 1.2em; color: #007bff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Comparador de Rutas .FIT (Garmin SDK)</h2>
+        
+        <div class="controls">
+            <div>
+                <label>Archivo 1 (Base):</label><br>
+                <input type="file" id="file1" accept=".fit">
+            </div>
+            <div>
+                <label>Archivo 2 (A comparar):</label><br>
+                <input type="file" id="file2" accept=".fit">
+            </div>
+        </div>
+
+        <div id="similarity" class="results">Similitud: -- %</div>
+        <div id="map"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script type="module">
+        import { Decoder, Stream } from 'https://cdn.jsdelivr.net/npm/@garmin/fitsdk@21.126.0/+esm';
+
+        const map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        let ruta1 = [], ruta2 = [];
+
+        async function procesarArchivo(input, color, index) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const arrayBuffer = await file.arrayBuffer();
+            const stream = Stream.fromByteArray(new Uint8Array(arrayBuffer));
+            const decoder = new Decoder(stream);
+            const { messages } = decoder.read();
+
+            const coords = messages.recordMesgs
+                .filter(m => m.positionLat && m.positionLong)
+                .map(m => [m.positionLat * (180 / Math.pow(2, 31)), m.positionLong * (180 / Math.pow(2, 31))]);
+
+            if (index === 1) ruta1 = coords;
+            else ruta2 = coords;
+
+            // Dibujar en el mapa
+            const poly = L.polyline(coords, {color: color, weight: 4}).addTo(map);
+            map.fitBounds(poly.getBounds());
+
+            if (ruta1.length > 0 && ruta2.length > 0) calcularSimilitud();
+        }
+
+        // Algoritmo de similitud simple (Proximidad GPS)
+        function calcularSimilitud() {
+            let coincidencias = 0;
+            const toleranciaKM = 0.05; // 50 metros de margen
+
+            ruta1.forEach(p1 => {
+                const puntoCercano = ruta2.some(p2 => {
+                    const d = map.distance(p1, p2); // Distancia en metros usando Leaflet
+                    return d < (toleranciaKM * 1000);
+                });
+                if (puntoCercano) coincidencias++;
+            });
+
+            const porcentaje = ((coincidencias / ruta1.length) * 100).toFixed(2);
+            document.getElementById('similarity').textContent = `Similitud de ruta: ${porcentaje}%`;
+        }
+
+        document.getElementById('file1').onchange = (e) => procesarArchivo(e.target, 'blue', 1);
+        document.getElementById('file2').onchange = (e) => procesarArchivo(e.target, 'red', 2);
+    </script>
+</body>
+</html>
