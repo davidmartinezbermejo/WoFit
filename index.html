@@ -2,22 +2,24 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Análisis FIT - Versión Linux</title>
+    <title>FIT Analyzer - Comparativa Pro</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: sans-serif; margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; }
-        .header { background: #2c3e50; color: white; padding: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-        #map { height: 400px; width: 100%; background: #ccc; flex-shrink: 0; }
-        .chart-wrapper { flex: 1; min-height: 250px; background: white; padding: 10px; }
-        #metrics { display: flex; gap: 5px; flex-wrap: wrap; background: #34495e; padding: 5px; border-radius: 4px; }
+        body { font-family: sans-serif; margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        .header { background: #2c3e50; color: white; padding: 10px; display: flex; gap: 15px; align-items: center; flex-shrink: 0; z-index: 1000; font-size: 12px; }
+        #map { height: 45vh; width: 100%; background: #ccc; }
+        .chart-wrapper { flex: 1; background: white; padding: 10px; position: relative; cursor: crosshair; }
+        #metrics { display: flex; gap: 8px; flex-wrap: wrap; background: #34495e; padding: 5px; border-radius: 4px; max-height: 50px; overflow-y: auto; }
+        .tooltip-table { border-collapse: collapse; font-size: 11px; }
+        .tooltip-table td, .tooltip-table th { border: 1px solid #555; padding: 3px; }
     </style>
 </head>
 <body>
     <div class="header">
-        F1: <input type="file" id="file1" style="width:140px">
-        F2: <input type="file" id="file2" style="width:140px">
-        Off (s): <input type="number" id="offset2" value="0" style="width:50px">
-        <div id="metrics">Carga archivos .fit...</div>
+        <div>F1: <input type="file" id="file1" style="width:130px"></div>
+        <div>F2: <input type="file" id="file2" style="width:130px"></div>
+        <div>Off (s): <input type="number" id="offset2" value="0" style="width:50px"></div>
+        <div id="metrics">Carga archivos...</div>
     </div>
     <div id="map"></div>
     <div class="chart-wrapper"><canvas id="mainChart"></canvas></div>
@@ -29,26 +31,62 @@
     <script type="module">
         import { Decoder, Stream } from 'https://cdn.jsdelivr.net/npm/@garmin/fitsdk@21.126.0/+esm';
 
-        // Inicialización inmediata
         const map = L.map('map').setView([0, 0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         
         let chart;
         let store = { f1: [], f2: [] };
-        const markers = { f1: L.circleMarker([0,0], {color:'blue'}).addTo(map), f2: L.circleMarker([0,0], {color:'red'}).addTo(map) };
+        const markers = { f1: L.circleMarker([0,0], {color:'blue', radius:8}).addTo(map), f2: L.circleMarker([0,0], {color:'red', radius:8}).addTo(map) };
         const colorsMap = {};
+
+        // Plugin para la línea vertical (Cursor)
+        const verticalLinePlugin = {
+            id: 'verticalLine',
+            afterDraw: (chart) => {
+                if (chart.tooltip?._active?.length) {
+                    const x = chart.tooltip._active[0].element.x;
+                    const yAxis = chart.scales.y;
+                    const ctx = chart.ctx;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(x, yAxis.top);
+                    ctx.lineTo(x, yAxis.bottom);
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = '#ff0000';
+                    ctx.setLineDash([5, 5]);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+        };
 
         const ctx = document.getElementById('mainChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
+            plugins: [verticalLinePlugin],
             data: { datasets: [] },
             options: { 
                 responsive: true, maintainAspectRatio: false,
-                scales: { x: { type: 'linear' } },
-                plugins: { zoom: { zoom: { wheel: { enabled: true }, mode: 'x' }, pan: { enabled: true, mode: 'x' } } },
-                onClick: (e) => {
-                    const x = chart.scales.x.getValueForPixel(e.x);
-                    if (x !== undefined) sync(x);
+                interaction: { mode: 'index', intersect: false },
+                scales: { x: { type: 'linear', title: { display: true, text: 'Segundos' } } },
+                plugins: {
+                    zoom: {
+                        zoom: { wheel: { enabled: true }, mode: 'x', speed: 0.1 },
+                        pan: { enabled: true, mode: 'x' }
+                    },
+                    tooltip: {
+                        enabled: true,
+                        external: null,
+                        callbacks: {
+                            label: () => null, // Quitamos etiquetas estándar
+                            title: (items) => `Tiempo: ${items[0].label}s`,
+                            afterBody: (items) => {
+                                const time = items[0].parsed.x;
+                                sync(time); // Sincroniza mapa al mover ratón
+                                return ""; 
+                            }
+                        }
+                    }
                 }
             }
         });
@@ -56,7 +94,8 @@
         async function parse(file, key) {
             const decoder = new Decoder(Stream.fromByteArray(new Uint8Array(await file.arrayBuffer())));
             const { messages } = decoder.read();
-            const recs = messages.recordMesgs.filter(m => m.positionLat);
+            const recs = (messages.recordMesgs || []).filter(m => m.positionLat);
+            if(!recs.length) return;
             const start = recs[0].timestamp.getTime();
             
             store[key] = recs.map(m => {
@@ -70,11 +109,12 @@
                 Object.keys(store.f1[0]).forEach(k => {
                     if(['t','lat','lng'].includes(k)) return;
                     const l = document.createElement('label');
+                    l.style.cursor = "pointer";
                     l.innerHTML = `<input type="checkbox" value="${k}" ${k==='heartRate'?'checked':''}> ${k}`;
                     l.onchange = update; mCont.appendChild(l);
                 });
             }
-            L.polyline(store[key].map(m => [m.lat, m.lng]), {color: key==='f1'?'blue':'red'}).addTo(map);
+            L.polyline(store[key].map(m => [m.lat, m.lng]), {color: key==='f1'?'blue':'red', weight: 2}).addTo(map);
             update();
         }
 
@@ -85,11 +125,11 @@
             ['f1', 'f2'].forEach(key => {
                 active.forEach(m => {
                     if(!store[key].length) return;
-                    if(!colorsMap[m]) colorsMap[m] = `hsl(${Math.random()*360},70%,50%)`;
+                    if(!colorsMap[m]) colorsMap[m] = `hsl(${Object.keys(colorsMap).length * 137.5}, 70%, 50%)`;
                     chart.data.datasets.push({
-                        label: `${key}:${m}`,
+                        label: `${key.toUpperCase()}:${m}`,
                         data: store[key].map(d => ({ x: d.t + (key==='f2'?off:0), y: d[m] || 0 })),
-                        borderColor: colorsMap[m], borderDash: key==='f1'?[]:[5,5], pointRadius: 0
+                        borderColor: colorsMap[m], borderDash: key==='f1'?[]:[5,5], pointRadius: 0, borderWidth: 2
                     });
                 });
             });
