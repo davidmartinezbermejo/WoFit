@@ -1,28 +1,67 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
+
 <head>
     <meta charset="UTF-8">
-    <title>FIT Analyzer - Comparativa Pro</title>
+    <title>FIT Sync</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: sans-serif; margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-        .header { background: #2c3e50; color: white; padding: 10px; display: flex; gap: 15px; align-items: center; flex-shrink: 0; z-index: 1000; font-size: 12px; }
-        #map { height: 45vh; width: 100%; background: #ccc; }
-        .chart-wrapper { flex: 1; background: white; padding: 10px; position: relative; cursor: crosshair; }
-        #metrics { display: flex; gap: 8px; flex-wrap: wrap; background: #34495e; padding: 5px; border-radius: 4px; max-height: 50px; overflow-y: auto; }
-        .tooltip-table { border-collapse: collapse; font-size: 11px; }
-        .tooltip-table td, .tooltip-table th { border: 1px solid #555; padding: 3px; }
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        #map {
+            height: 45%;
+            width: 100%;
+            background: #ddd;
+        }
+
+        .chart-container {
+            flex: 1;
+            padding: 10px;
+            background: white;
+        }
+
+        #metrics {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            font-size: 12px;
+        }
+
+        .square {
+            width: 10px;
+            height: 10px;
+            border: 1px solid white;
+            box-shadow: 0 0 2px #000;
+        }
     </style>
 </head>
+
 <body>
     <div class="header">
-        <div>F1: <input type="file" id="file1" style="width:130px"></div>
-        <div>F2: <input type="file" id="file2" style="width:130px"></div>
-        <div>Off (s): <input type="number" id="offset2" value="0" style="width:50px"></div>
-        <div id="metrics">Carga archivos...</div>
+        F1: <input type="file" id="file1" style="width:130px">
+        F2: <input type="file" id="file2" style="width:130px">
+        Off: <input type="number" id="offset" value="0" style="width:50px">
+        <div id="metrics"></div>
     </div>
     <div id="map"></div>
-    <div class="chart-wrapper"><canvas id="mainChart"></canvas></div>
+    <div class="chart-container"><canvas id="mainChart"></canvas></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -33,122 +72,178 @@
 
         const map = L.map('map').setView([0, 0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        
-        let chart;
-        let store = { f1: [], f2: [] };
-        const markers = { f1: L.circleMarker([0,0], {color:'blue', radius:8}).addTo(map), f2: L.circleMarker([0,0], {color:'red', radius:8}).addTo(map) };
-        const colorsMap = {};
 
-        // Plugin para la línea vertical (Cursor)
-        const verticalLinePlugin = {
-            id: 'verticalLine',
-            afterDraw: (chart) => {
-                if (chart.tooltip?._active?.length) {
-                    const x = chart.tooltip._active[0].element.x;
-                    const yAxis = chart.scales.y;
-                    const ctx = chart.ctx;
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.moveTo(x, yAxis.top);
-                    ctx.lineTo(x, yAxis.bottom);
-                    ctx.lineWidth = 1;
-                    ctx.strokeStyle = '#ff0000';
-                    ctx.setLineDash([5, 5]);
-                    ctx.stroke();
-                    ctx.restore();
-                }
-            }
+        let chart;
+        let dataStore = { f1: [], f2: [] };
+        // Colores fijos por parámetro
+        const paramColors = {
+            heartRate: '#e74c3c', // Rojo
+            speed: '#3498db',     // Azul
+            cadence: '#f1c40f',   // Amarillo
+            power: '#9b59b6',     // Morado
+            altitude: '#27ae60',  // Verde
+            distance: '#7f8c8d',  // Gris
+            temperature: '#e67e22'// Naranja
+        };
+
+        const layers = { f1: L.featureGroup().addTo(map), f2: L.featureGroup().addTo(map) };
+        const cursorMarkers = {
+            f1: L.circleMarker([0, 0], { color: 'blue', radius: 6, fillOpacity: 1 }).addTo(map),
+            f2: L.circleMarker([0, 0], { color: 'red', radius: 6, fillOpacity: 1 }).addTo(map)
         };
 
         const ctx = document.getElementById('mainChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
-            plugins: [verticalLinePlugin],
             data: { datasets: [] },
-            options: { 
+            options: {
                 responsive: true, maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                scales: { x: { type: 'linear', title: { display: true, text: 'Segundos' } } },
                 plugins: {
-                    zoom: {
-                        zoom: { wheel: { enabled: true }, mode: 'x', speed: 0.1 },
-                        pan: { enabled: true, mode: 'x' }
-                    },
-                    tooltip: {
-                        enabled: true,
-                        external: null,
-                        callbacks: {
-                            label: () => null, // Quitamos etiquetas estándar
-                            title: (items) => `Tiempo: ${items[0].label}s`,
-                            afterBody: (items) => {
-                                const time = items[0].parsed.x;
-                                sync(time); // Sincroniza mapa al mover ratón
-                                return ""; 
-                            }
-                        }
+                    tooltip: { callbacks: { afterBody: (items) => { moveCursors(items[0].parsed.x); return ""; } } }
+                },
+                scales: { x: { type: 'linear' } }
+            },
+            plugins: [{
+                id: 'crosshair',
+                afterDraw: (chart) => {
+                    if (chart.tooltip?._active?.length) {
+                        const x = chart.tooltip._active[0].element.x;
+                        const ctx = chart.ctx;
+                        ctx.save(); ctx.beginPath();
+                        ctx.moveTo(x, chart.scales.y.top);
+                        ctx.lineTo(x, chart.scales.y.bottom);
+                        ctx.lineWidth = 1; ctx.strokeStyle = '#666'; ctx.setLineDash([3, 3]);
+                        ctx.stroke(); ctx.restore();
                     }
                 }
-            }
+            }]
         });
 
-        async function parse(file, key) {
-            const decoder = new Decoder(Stream.fromByteArray(new Uint8Array(await file.arrayBuffer())));
+        async function processFit(file, key) {
+            if (!file) return;
+            const buffer = await file.arrayBuffer();
+            const decoder = new Decoder(Stream.fromByteArray(new Uint8Array(buffer)));
             const { messages } = decoder.read();
-            const recs = (messages.recordMesgs || []).filter(m => m.positionLat);
-            if(!recs.length) return;
-            const start = recs[0].timestamp.getTime();
-            
-            store[key] = recs.map(m => {
-                const d = { t: (m.timestamp.getTime() - start) / 1000, lat: m.positionLat * (180/2**31), lng: m.positionLong * (180/2**31) };
-                Object.keys(m).forEach(k => { if(typeof m[k] === 'number') d[k] = m[k]; });
-                return d;
+            const records = (messages.recordMesgs || []).filter(m => m.positionLat);
+
+            if (records.length === 0) return;
+
+            const startT = records[0].timestamp.getTime();
+            dataStore[key] = records.map(m => {
+                const obj = {
+                    t: (m.timestamp.getTime() - startT) / 1000,
+                    lat: m.positionLat * (180 / Math.pow(2, 31)),
+                    lng: m.positionLong * (180 / Math.pow(2, 31))
+                };
+                for (let k in m) { if (typeof m[k] === 'number') obj[k] = m[k]; }
+                return obj;
             });
 
-            if(key === 'f1') {
-                const mCont = document.getElementById('metrics'); mCont.innerHTML = '';
-                Object.keys(store.f1[0]).forEach(k => {
-                    if(['t','lat','lng'].includes(k)) return;
-                    const l = document.createElement('label');
-                    l.style.cursor = "pointer";
-                    l.innerHTML = `<input type="checkbox" value="${k}" ${k==='heartRate'?'checked':''}> ${k}`;
-                    l.onchange = update; mCont.appendChild(l);
-                });
-            }
-            L.polyline(store[key].map(m => [m.lat, m.lng]), {color: key==='f1'?'blue':'red', weight: 2}).addTo(map);
-            update();
+            drawRoute(key);
+            buildMetricSelectors(); // Reconstruye con todos los campos encontrados
+            updateChart();
         }
 
-        function update() {
-            const off = parseFloat(document.getElementById('offset2').value) || 0;
-            const active = Array.from(document.querySelectorAll('#metrics input:checked')).map(i => i.value);
+        function drawRoute(key) {
+            layers[key].clearLayers();
+            const color = key === 'f1' ? 'blue' : 'red'; // Color de la línea en mapa para distinguir archivos
+            const pts = dataStore[key].map(d => [d.lat, d.lng]);
+
+            if (pts.length === 0) return;
+
+            // Dibujar la línea de la ruta
+            L.polyline(pts, { color: color, weight: 3, opacity: 0.7 }).addTo(layers[key]);
+
+            // Inicio: Triángulo (▲)
+            const triHtml = `<div style="color:${color}; font-size:16px; transform:translate(-2px,-9px); text-shadow: 0 0 3px #fff;">▲</div>`;
+            L.marker(pts[0], {
+                icon: L.divIcon({ className: '', html: triHtml, iconSize: [15, 15] }),
+                interactive: false
+            }).addTo(layers[key]);
+
+            // Fin: Cuadrado relleno
+            const sqHtml = `<div class="square" style="background:${color};"></div>`;
+            L.marker(pts[pts.length - 1], {
+                icon: L.divIcon({ className: '', html: sqHtml, iconSize: [10, 10], iconAnchor: [5, 5] }),
+                interactive: false
+            }).addTo(layers[key]);
+
+            // Ajustar el mapa para que se vean ambas rutas
+            const allPts = [...dataStore.f1, ...dataStore.f2].map(d => [d.lat, d.lng]);
+            if (allPts.length > 0) {
+                map.fitBounds(L.latLngBounds(allPts), { padding: [30, 30] });
+            }
+        }
+
+        function buildMetricSelectors() {
+            const div = document.getElementById('metrics');
+            const currentChecked = Array.from(div.querySelectorAll('input:checked')).map(i => i.value);
+            div.innerHTML = '';
+
+            // Extraer todos los parámetros únicos de ambos archivos
+            const allKeys = new Set();
+            [...dataStore.f1, ...dataStore.f2].forEach(rec => {
+                Object.keys(rec).forEach(k => {
+                    if (!['t', 'lat', 'lng'].includes(k)) allKeys.add(k);
+                });
+            });
+
+            Array.from(allKeys).sort().forEach(m => {
+                const label = document.createElement('label');
+                label.style.marginRight = "10px";
+                label.style.color = paramColors[m] || '#999';
+                const isChecked = currentChecked.includes(m) || m === 'heartRate';
+                label.innerHTML = `<input type="checkbox" value="${m}" ${isChecked ? 'checked' : ''}> ${m}`;
+                label.onchange = updateChart;
+                div.appendChild(label);
+            });
+        }
+
+        function updateChart() {
+            const offset = parseFloat(document.getElementById('offset').value) || 0;
+            const selected = Array.from(document.querySelectorAll('#metrics input:checked')).map(i => i.value);
+
             chart.data.datasets = [];
             ['f1', 'f2'].forEach(key => {
-                active.forEach(m => {
-                    if(!store[key].length) return;
-                    if(!colorsMap[m]) colorsMap[m] = `hsl(${Object.keys(colorsMap).length * 137.5}, 70%, 50%)`;
+                if (dataStore[key].length === 0) return;
+                const off = key === 'f2' ? offset : 0;
+                selected.forEach(m => {
+                    // Si no tiene color asignado, generar uno basado en el nombre
+                    if (!paramColors[m]) {
+                        paramColors[m] = `hsl(${[...m].reduce((a, c) => a + c.charCodeAt(0), 0) % 360}, 60%, 50%)`;
+                    }
+
                     chart.data.datasets.push({
-                        label: `${key.toUpperCase()}:${m}`,
-                        data: store[key].map(d => ({ x: d.t + (key==='f2'?off:0), y: d[m] || 0 })),
-                        borderColor: colorsMap[m], borderDash: key==='f1'?[]:[5,5], pointRadius: 0, borderWidth: 2
+                        label: `${key.toUpperCase()}: ${m}`,
+                        data: dataStore[key].map(d => ({ x: d.t + off, y: d[m] || 0 })),
+                        borderColor: paramColors[m],
+                        borderDash: key === 'f2' ? [5, 5] : [], // F2 siempre discontinua
+                        pointRadius: 0,
+                        borderWidth: 2
                     });
                 });
             });
             chart.update();
         }
 
-        function sync(time) {
-            const off2 = parseFloat(document.getElementById('offset2').value) || 0;
+        function moveCursors(time) {
+            const offset = parseFloat(document.getElementById('offset').value) || 0;
             ['f1', 'f2'].forEach(key => {
-                const off = key === 'f2' ? off2 : 0;
-                if(!store[key].length) return;
-                const pt = store[key].reduce((a, b) => Math.abs((b.t+off)-time) < Math.abs((a.t+off)-time) ? b : a);
-                markers[key].setLatLng([pt.lat, pt.lng]);
+                if (dataStore[key].length === 0) return;
+                const off = key === 'f2' ? offset : 0;
+                const closest = dataStore[key].reduce((prev, curr) =>
+                    Math.abs((curr.t + off) - time) < Math.abs((prev.t + off) - time) ? curr : prev
+                );
+                cursorMarkers[key].setLatLng([closest.lat, closest.lng]);
             });
         }
 
-        document.getElementById('file1').onchange = e => parse(e.target.files[0], 'f1');
-        document.getElementById('file2').onchange = e => parse(e.target.files[0], 'f2');
-        document.getElementById('offset2').oninput = update;
+        document.getElementById('file1').onchange = e => processFit(e.target.files[0], 'f1');
+        document.getElementById('file2').onchange = e => processFit(e.target.files[0], 'f2');
+        document.getElementById('offset').oninput = updateChart;
+        window.onload = () => map.invalidateSize();
     </script>
 </body>
+
 </html>
