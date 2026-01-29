@@ -89,10 +89,11 @@
 
     <script type="module">
         function formatTime(seconds) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = Math.floor(seconds % 60);
-            return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
+            const h = Math.floor(Math.abs(seconds) / 3600);
+            const m = Math.floor((Math.abs(seconds) % 3600) / 60);
+            const s = Math.floor(Math.abs(seconds) % 60);
+            const sign = seconds < 0 ? '-' : '';
+            return `${sign}${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         }
 
         import { Decoder, Stream } from 'https://cdn.jsdelivr.net/npm/@garmin/fitsdk@21.126.0/+esm';
@@ -121,19 +122,33 @@
                 responsive: true, maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
                 scales: {
-                    x: {
-                        type: 'linear',
-                        ticks: {
-                            // Convierte los segundos del eje X a HH:mm:ss
-                            callback: (value) => formatTime(value)
-                        }
-                    }
+                    x: { type: 'linear', ticks: { callback: (v) => formatTime(v) } }
                 },
                 plugins: {
                     tooltip: {
                         callbacks: {
-                            // Cambia el título del tooltip a HH:mm:ss
                             title: (items) => formatTime(items[0].parsed.x),
+                            // Lógica para añadir la diferencia al final del tooltip
+                            footer: (items) => {
+                                const time = items[0].parsed.x;
+                                const offset = parseFloat(document.getElementById('offset').value) || 0;
+                                const selectedMetrics = Array.from(document.querySelectorAll('#metrics input[type="checkbox"]:checked')).map(i => i.value);
+
+                                let footerLines = [];
+
+                                selectedMetrics.forEach(m => {
+                                    if (dataStore.f1.length && dataStore.f2.length) {
+                                        // Buscar valor F1
+                                        const v1 = dataStore.f1.reduce((a, b) => Math.abs(b.t - time) < Math.abs(a.t - time) ? b : a)[m] || 0;
+                                        // Buscar valor F2 (teniendo en cuenta el offset)
+                                        const v2 = dataStore.f2.reduce((a, b) => Math.abs((b.t + offset) - time) < Math.abs((a.t + offset) - time) ? b : a)[m] || 0;
+
+                                        const diff = (v1 - v2).toFixed(1);
+                                        footerLines.push(`Diff ${m}: ${diff > 0 ? '+' : ''}${diff}`);
+                                    }
+                                });
+                                return footerLines.join('\n');
+                            },
                             afterBody: (items) => {
                                 moveCursors(items[0].parsed.x);
                                 return "";
