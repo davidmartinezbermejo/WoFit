@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>FIT Sync</title>
+    <title>FIT Sync Pro</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body {
@@ -20,13 +20,19 @@
             color: white;
             padding: 10px;
             display: flex;
-            gap: 10px;
-            align-items: center;
+            flex-direction: column;
+            gap: 5px;
             z-index: 1000;
         }
 
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
         #map {
-            height: 45%;
+            height: 40vh;
             width: 100%;
             background: #ddd;
         }
@@ -35,29 +41,43 @@
             flex: 1;
             padding: 10px;
             background: white;
+            min-height: 0;
         }
 
         #metrics {
             display: flex;
-            gap: 10px;
+            gap: 12px;
             flex-wrap: wrap;
-            font-size: 12px;
+            font-size: 11px;
+            background: #34495e;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .metric-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            border: 1px solid #555;
+            padding: 2px 5px;
+            border-radius: 3px;
         }
 
         .square {
             width: 10px;
             height: 10px;
             border: 1px solid white;
-            box-shadow: 0 0 2px #000;
         }
     </style>
 </head>
 
 <body>
     <div class="header">
-        F1: <input type="file" id="file1" style="width:130px">
-        F2: <input type="file" id="file2" style="width:130px">
-        Off: <input type="number" id="offset" value="0" style="width:50px">
+        <div class="controls">
+            F1: <input type="file" id="file1" style="width:130px">
+            F2: <input type="file" id="file2" style="width:130px">
+            Offset F2: <input type="number" id="offset" value="0" style="width:60px">
+        </div>
         <div id="metrics"></div>
     </div>
     <div id="map"></div>
@@ -68,6 +88,13 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
 
     <script type="module">
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
+        }
+
         import { Decoder, Stream } from 'https://cdn.jsdelivr.net/npm/@garmin/fitsdk@21.126.0/+esm';
 
         const map = L.map('map').setView([0, 0], 2);
@@ -75,21 +102,15 @@
 
         let chart;
         let dataStore = { f1: [], f2: [] };
-        // Colores fijos por parámetro
         const paramColors = {
-            heartRate: '#e74c3c', // Rojo
-            speed: '#3498db',     // Azul
-            cadence: '#f1c40f',   // Amarillo
-            power: '#9b59b6',     // Morado
-            altitude: '#27ae60',  // Verde
-            distance: '#7f8c8d',  // Gris
-            temperature: '#e67e22'// Naranja
+            heartRate: '#ff0000', speed: '#0000ff', cadence: '#ffff00',
+            power: '#a020f0', altitude: '#00ff00'
         };
 
         const layers = { f1: L.featureGroup().addTo(map), f2: L.featureGroup().addTo(map) };
         const cursorMarkers = {
-            f1: L.circleMarker([0, 0], { color: 'blue', radius: 6, fillOpacity: 1 }).addTo(map),
-            f2: L.circleMarker([0, 0], { color: 'red', radius: 6, fillOpacity: 1 }).addTo(map)
+            f1: L.circleMarker([0, 0], { color: 'blue', radius: 6, fillOpacity: 1, interactive: false }).addTo(map),
+            f2: L.circleMarker([0, 0], { color: 'red', radius: 6, fillOpacity: 1, interactive: false }).addTo(map)
         };
 
         const ctx = document.getElementById('mainChart').getContext('2d');
@@ -99,12 +120,26 @@
             options: {
                 responsive: true, maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    tooltip: { callbacks: { afterBody: (items) => { moveCursors(items[0].parsed.x); return ""; } } }
-                },
                 scales: {
-                    x: { type: 'linear' }
-                    // Los ejes Y se generarán dinámicamente en updateChart
+                    x: {
+                        type: 'linear',
+                        ticks: {
+                            // Convierte los segundos del eje X a HH:mm:ss
+                            callback: (value) => formatTime(value)
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            // Cambia el título del tooltip a HH:mm:ss
+                            title: (items) => formatTime(items[0].parsed.x),
+                            afterBody: (items) => {
+                                moveCursors(items[0].parsed.x);
+                                return "";
+                            }
+                        }
+                    }
                 }
             },
             plugins: [{
@@ -129,7 +164,6 @@
             const decoder = new Decoder(Stream.fromByteArray(new Uint8Array(buffer)));
             const { messages } = decoder.read();
             const records = (messages.recordMesgs || []).filter(m => m.positionLat);
-
             if (records.length === 0) return;
 
             const startT = records[0].timestamp.getTime();
@@ -144,108 +178,81 @@
             });
 
             drawRoute(key);
-            buildMetricSelectors(); // Reconstruye con todos los campos encontrados
+            buildMetricSelectors();
             updateChart();
-        }
-
-        function drawRoute(key) {
-            layers[key].clearLayers();
-            const color = key === 'f1' ? 'blue' : 'red'; // Color de la línea en mapa para distinguir archivos
-            const pts = dataStore[key].map(d => [d.lat, d.lng]);
-
-            if (pts.length === 0) return;
-
-            // Dibujar la línea de la ruta
-            L.polyline(pts, { color: color, weight: 3, opacity: 0.7 }).addTo(layers[key]);
-
-            // Inicio: Triángulo (▲)
-            const triHtml = `<div style="color:${color}; font-size:16px; transform:translate(-2px,-9px); text-shadow: 0 0 3px #fff;">▲</div>`;
-            L.marker(pts[0], {
-                icon: L.divIcon({ className: '', html: triHtml, iconSize: [15, 15] }),
-                interactive: false
-            }).addTo(layers[key]);
-
-            // Fin: Cuadrado relleno
-            const sqHtml = `<div class="square" style="background:${color};"></div>`;
-            L.marker(pts[pts.length - 1], {
-                icon: L.divIcon({ className: '', html: sqHtml, iconSize: [10, 10], iconAnchor: [5, 5] }),
-                interactive: false
-            }).addTo(layers[key]);
-
-            // Ajustar el mapa para que se vean ambas rutas
-            const allPts = [...dataStore.f1, ...dataStore.f2].map(d => [d.lat, d.lng]);
-            if (allPts.length > 0) {
-                map.fitBounds(L.latLngBounds(allPts), { padding: [30, 30] });
-            }
         }
 
         function buildMetricSelectors() {
             const div = document.getElementById('metrics');
-            const currentChecked = Array.from(div.querySelectorAll('input:checked')).map(i => i.value);
+            const currentSelected = Array.from(div.querySelectorAll('input[type="checkbox"]:checked')).map(i => i.value);
             div.innerHTML = '';
 
-            // Extraer todos los parámetros únicos de ambos archivos
             const allKeys = new Set();
             [...dataStore.f1, ...dataStore.f2].forEach(rec => {
-                Object.keys(rec).forEach(k => {
-                    if (!['t', 'lat', 'lng'].includes(k)) allKeys.add(k);
-                });
+                Object.keys(rec).forEach(k => { if (!['t', 'lat', 'lng'].includes(k)) allKeys.add(k); });
             });
 
             Array.from(allKeys).sort().forEach(m => {
-                const label = document.createElement('label');
-                label.style.marginRight = "10px";
-                label.style.color = paramColors[m] || '#999';
-                const isChecked = currentChecked.includes(m) || m === 'heartRate';
-                label.innerHTML = `<input type="checkbox" value="${m}" ${isChecked ? 'checked' : ''}> ${m}`;
-                label.onchange = updateChart;
-                div.appendChild(label);
+                if (!paramColors[m]) paramColors[m] = '#999999';
+
+                const span = document.createElement('span');
+                span.className = 'metric-item';
+                span.style.color = paramColors[m];
+
+                span.innerHTML = `
+                    <input type="checkbox" value="${m}" ${currentSelected.includes(m) || m === 'heartRate' ? 'checked' : ''}>
+                    <input type="color" value="${paramColors[m]}" style="width:20px;height:20px;border:none;padding:0;background:none">
+                    <span>${m}</span>
+                `;
+
+                const cb = span.querySelector('input[type="checkbox"]');
+                const cp = span.querySelector('input[type="color"]');
+
+                cb.onchange = updateChart;
+                cp.oninput = (e) => {
+                    paramColors[m] = e.target.value;
+                    span.style.color = e.target.value;
+                    updateChart();
+                };
+
+                div.appendChild(span);
             });
         }
 
         function updateChart() {
             const offset = parseFloat(document.getElementById('offset').value) || 0;
-            const selected = Array.from(document.querySelectorAll('#metrics input:checked')).map(i => i.value);
+            const selected = Array.from(document.querySelectorAll('#metrics input[type="checkbox"]:checked')).map(i => i.value);
 
             chart.data.datasets = [];
-            const newScales = { x: chart.options.scales.x };
+            // Mantener el formato en el eje X al actualizar escalas
+            const newScales = {
+                x: {
+                    type: 'linear',
+                    ticks: { callback: (value) => formatTime(value) }
+                }
+            };
 
             selected.forEach((m, index) => {
-                const color = paramColors[m] || `hsl(${[...m].reduce((a, c) => a + c.charCodeAt(0), 0) % 360}, 60%, 50%)`;
-                paramColors[m] = color;
-
-                // Configurar un eje Y único para cada parámetro
+                // ... (resto del código de selección de colores y ejes Y que ya tenías)
+                const color = paramColors[m];
                 newScales[m] = {
-                    type: 'linear',
-                    display: true,
-                    position: index % 2 === 0 ? 'left' : 'right', // Alterna lados
+                    type: 'linear', display: true,
+                    position: index % 2 === 0 ? 'left' : 'right',
                     title: { display: true, text: m, color: color },
                     ticks: { color: color },
-                    grid: { drawOnChartArea: index === 0 }, // Solo el primer eje dibuja rejilla
+                    grid: { drawOnChartArea: index === 0 }
                 };
 
-                // Añadir datos de F1
                 if (dataStore.f1.length) {
                     chart.data.datasets.push({
-                        label: `F1: ${m}`,
-                        data: dataStore.f1.map(d => ({ x: d.t, y: d[m] })),
-                        borderColor: color,
-                        yAxisID: m,
-                        pointRadius: 0,
-                        borderWidth: 2
+                        label: `F1: ${m}`, data: dataStore.f1.map(d => ({ x: d.t, y: d[m] })),
+                        borderColor: color, yAxisID: m, pointRadius: 0, borderWidth: 2
                     });
                 }
-
-                // Añadir datos de F2
                 if (dataStore.f2.length) {
                     chart.data.datasets.push({
-                        label: `F2: ${m}`,
-                        data: dataStore.f2.map(d => ({ x: d.t + offset, y: d[m] })),
-                        borderColor: color,
-                        borderDash: [5, 5],
-                        yAxisID: m,
-                        pointRadius: 0,
-                        borderWidth: 2
+                        label: `F2: ${m}`, data: dataStore.f2.map(d => ({ x: d.t + offset, y: d[m] })),
+                        borderColor: color, borderDash: [5, 5], yAxisID: m, pointRadius: 0, borderWidth: 2
                     });
                 }
             });
@@ -253,14 +260,27 @@
             chart.options.scales = newScales;
             chart.update();
         }
+        function drawRoute(key) {
+            layers[key].clearLayers();
+            const color = key === 'f1' ? 'blue' : 'red';
+            const pts = dataStore[key].map(d => [d.lat, d.lng]);
+            L.polyline(pts, { color: color, weight: 3 }).addTo(layers[key]);
+
+            const triHtml = `<div style="color:${color};font-size:16px;transform:translate(-2px,-9px)">▲</div>`;
+            L.marker(pts[0], { icon: L.divIcon({ className: '', html: triHtml }) }).addTo(layers[key]);
+            const sqHtml = `<div class="square" style="background:${color}"></div>`;
+            L.marker(pts[pts.length - 1], { icon: L.divIcon({ className: '', html: sqHtml, iconSize: [10, 10] }) }).addTo(layers[key]);
+
+            const allPts = [...dataStore.f1, ...dataStore.f2].map(d => [d.lat, d.lng]);
+            if (allPts.length) map.fitBounds(L.latLngBounds(allPts));
+        }
+
         function moveCursors(time) {
             const offset = parseFloat(document.getElementById('offset').value) || 0;
             ['f1', 'f2'].forEach(key => {
-                if (dataStore[key].length === 0) return;
+                if (!dataStore[key].length) return;
                 const off = key === 'f2' ? offset : 0;
-                const closest = dataStore[key].reduce((prev, curr) =>
-                    Math.abs((curr.t + off) - time) < Math.abs((prev.t + off) - time) ? curr : prev
-                );
+                const closest = dataStore[key].reduce((a, b) => Math.abs((b.t + off) - time) < Math.abs((a.t + off) - time) ? b : a);
                 cursorMarkers[key].setLatLng([closest.lat, closest.lng]);
             });
         }
@@ -268,7 +288,6 @@
         document.getElementById('file1').onchange = e => processFit(e.target.files[0], 'f1');
         document.getElementById('file2').onchange = e => processFit(e.target.files[0], 'f2');
         document.getElementById('offset').oninput = updateChart;
-        window.onload = () => map.invalidateSize();
     </script>
 </body>
 
