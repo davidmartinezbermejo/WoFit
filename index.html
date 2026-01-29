@@ -102,7 +102,10 @@
                 plugins: {
                     tooltip: { callbacks: { afterBody: (items) => { moveCursors(items[0].parsed.x); return ""; } } }
                 },
-                scales: { x: { type: 'linear' } }
+                scales: {
+                    x: { type: 'linear' }
+                    // Los ejes Y se generarán dinámicamente en updateChart
+                }
             },
             plugins: [{
                 id: 'crosshair',
@@ -111,8 +114,8 @@
                         const x = chart.tooltip._active[0].element.x;
                         const ctx = chart.ctx;
                         ctx.save(); ctx.beginPath();
-                        ctx.moveTo(x, chart.scales.y.top);
-                        ctx.lineTo(x, chart.scales.y.bottom);
+                        ctx.moveTo(x, chart.chartArea.top);
+                        ctx.lineTo(x, chart.chartArea.bottom);
                         ctx.lineWidth = 1; ctx.strokeStyle = '#666'; ctx.setLineDash([3, 3]);
                         ctx.stroke(); ctx.restore();
                     }
@@ -205,28 +208,51 @@
             const selected = Array.from(document.querySelectorAll('#metrics input:checked')).map(i => i.value);
 
             chart.data.datasets = [];
-            ['f1', 'f2'].forEach(key => {
-                if (dataStore[key].length === 0) return;
-                const off = key === 'f2' ? offset : 0;
-                selected.forEach(m => {
-                    // Si no tiene color asignado, generar uno basado en el nombre
-                    if (!paramColors[m]) {
-                        paramColors[m] = `hsl(${[...m].reduce((a, c) => a + c.charCodeAt(0), 0) % 360}, 60%, 50%)`;
-                    }
+            const newScales = { x: chart.options.scales.x };
 
+            selected.forEach((m, index) => {
+                const color = paramColors[m] || `hsl(${[...m].reduce((a, c) => a + c.charCodeAt(0), 0) % 360}, 60%, 50%)`;
+                paramColors[m] = color;
+
+                // Configurar un eje Y único para cada parámetro
+                newScales[m] = {
+                    type: 'linear',
+                    display: true,
+                    position: index % 2 === 0 ? 'left' : 'right', // Alterna lados
+                    title: { display: true, text: m, color: color },
+                    ticks: { color: color },
+                    grid: { drawOnChartArea: index === 0 }, // Solo el primer eje dibuja rejilla
+                };
+
+                // Añadir datos de F1
+                if (dataStore.f1.length) {
                     chart.data.datasets.push({
-                        label: `${key.toUpperCase()}: ${m}`,
-                        data: dataStore[key].map(d => ({ x: d.t + off, y: d[m] || 0 })),
-                        borderColor: paramColors[m],
-                        borderDash: key === 'f2' ? [5, 5] : [], // F2 siempre discontinua
+                        label: `F1: ${m}`,
+                        data: dataStore.f1.map(d => ({ x: d.t, y: d[m] })),
+                        borderColor: color,
+                        yAxisID: m,
                         pointRadius: 0,
                         borderWidth: 2
                     });
-                });
+                }
+
+                // Añadir datos de F2
+                if (dataStore.f2.length) {
+                    chart.data.datasets.push({
+                        label: `F2: ${m}`,
+                        data: dataStore.f2.map(d => ({ x: d.t + offset, y: d[m] })),
+                        borderColor: color,
+                        borderDash: [5, 5],
+                        yAxisID: m,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    });
+                }
             });
+
+            chart.options.scales = newScales;
             chart.update();
         }
-
         function moveCursors(time) {
             const offset = parseFloat(document.getElementById('offset').value) || 0;
             ['f1', 'f2'].forEach(key => {
