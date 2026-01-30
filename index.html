@@ -4,33 +4,84 @@
     <meta charset="UTF-8">
     <title>FIT Sync Pro</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <style>
-        body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        .header { background: #2c3e50; color: white; padding: 10px; display: flex; flex-direction: column; gap: 5px; z-index: 1000; }
-        .controls { display: flex; gap: 10px; align-items: center; }
-        #map { height: 40vh; width: 100%; background: #ddd; }
+        :root { --panel-width: 300px; }
+        body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #1a1a1a; }
+        
+        .toolbar { background: #2c3e50; color: white; padding: 10px; display: flex; gap: 20px; z-index: 2001; border-bottom: 1px solid #34495e; position: relative; }
+        .tool-button { cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; transition: color 0.2s; }
+        .tool-button:hover { color: #3498db; }
+
+        #main-wrapper { display: flex; flex: 1; width: calc(100% + var(--panel-width)); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); transform: translateX(calc(-1 * var(--panel-width))); }
+        #main-wrapper.shifted { transform: translateX(0); }
+
+        .side-panel { width: var(--panel-width); height: 100%; background: #2c3e50; color: white; padding: 20px; box-sizing: border-box; flex-shrink: 0; overflow-y: auto; position: relative; z-index: 2100; border-right: 1px solid #444; }
+        .panel-content { position: relative; }
+        .panel-content h3 { margin-top: 0; border-bottom: 1px solid #555; padding-bottom: 10px; font-size: 1.1rem; padding-right: 30px; }
+        
+        /* Botón X de cierre */
+        .close-btn { position: absolute; top: 0; right: 0; cursor: pointer; font-size: 1.2rem; color: #bdc3c7; transition: color 0.2s; }
+        .close-btn:hover { color: #e74c3c; }
+
+        #content-area { flex: 1; display: flex; flex-direction: column; height: 100%; background: #fff; width: 100vw; position: relative; }
+        
+        #map { height: 45vh; width: 100%; background: #ddd; flex-shrink: 0; }
         .chart-container { flex: 1; padding: 10px; background: white; min-height: 0; position: relative; }
-        #metrics { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; background: #34495e; padding: 8px; border-radius: 4px; min-height: 20px; }
-        .metric-item { display: flex; align-items: center; gap: 4px; border: 1px solid #555; padding: 2px 5px; border-radius: 3px; }
-        .square { width: 10px; height: 10px; border: 1px solid white; }
-        #resetZoom { position: absolute; top: 15px; right: 25px; z-index: 10; padding: 5px 10px; cursor: pointer; background: #eee; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
-        canvas { cursor: grab; }
-        canvas:active { cursor: grabbing; }
+        
+        .config-group { display: flex; flex-direction: column; gap: 15px; margin-top: 15px; }
+        .config-group label { font-size: 12px; color: #bdc3c7; display: block; margin-bottom: 4px; }
+        #metrics { display: flex; flex-direction: column; gap: 8px; }
+        .metric-item { display: flex; align-items: center; gap: 10px; padding: 8px; background: #34495e; border-radius: 4px; font-size: 13px; }
+        #resetZoom { position: absolute; top: 15px; right: 25px; z-index: 10; padding: 5px 10px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="controls">
-            F1: <input type="file" id="file1" style="width:130px">
-            F2: <input type="file" id="file2" style="width:130px">
-            Offset F2: <input type="number" id="offset" value="0" style="width:60px">
+
+    <div class="toolbar">
+        <div class="tool-button" onclick="openPanel('panel-files')">
+            <i class="fas fa-file-import"></i> <span>Archivos</span>
         </div>
-        <div id="metrics"></div>
+        <div class="tool-button" onclick="openPanel('panel-metrics')">
+            <i class="fas fa-chart-line"></i> <span>Parámetros</span>
+        </div>
     </div>
-    <div id="map"></div>
-    <div class="chart-container">
-        <button id="resetZoom">Reset Zoom</button>
-        <canvas id="mainChart"></canvas>
+
+    <div id="main-wrapper">
+        <aside class="side-panel">
+            <div id="panel-files" class="panel-content" style="display:none">
+                <i class="fas fa-times close-btn" onclick="closePanels()"></i>
+                <h3>Archivos y Offset</h3>
+                <div class="config-group">
+                    <div>
+                        <label>Archivo 1 (F1):</label>
+                        <input type="file" id="file1" style="width:100%">
+                    </div>
+                    <div>
+                        <label>Archivo 2 (F2):</label>
+                        <input type="file" id="file2" style="width:100%">
+                    </div>
+                    <div>
+                        <label>Offset F2 (segundos):</label>
+                        <input type="number" id="offset" value="0" style="width:100%; box-sizing: border-box;">
+                    </div>
+                </div>
+            </div>
+
+            <div id="panel-metrics" class="panel-content" style="display:none">
+                <i class="fas fa-times close-btn" onclick="closePanels()"></i>
+                <h3>Métricas y Colores</h3>
+                <div id="metrics"><p style="font-size:12px; color:#bdc3c7;">Carga archivos para ver métricas.</p></div>
+            </div>
+        </aside>
+
+        <main id="content-area">
+            <div id="map"></div>
+            <div class="chart-container">
+                <button id="resetZoom">Reset Zoom</button>
+                <canvas id="mainChart"></canvas>
+            </div>
+        </main>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -41,20 +92,31 @@
     <script type="module">
         import { Decoder, Stream } from 'https://cdn.jsdelivr.net/npm/@garmin/fitsdk@21.126.0/+esm';
 
-        // Variables
+        window.openPanel = (contentId) => {
+            const wrapper = document.getElementById('main-wrapper');
+            document.querySelectorAll('.panel-content').forEach(p => p.style.display = 'none');
+            document.getElementById(contentId).style.display = 'block';
+            wrapper.classList.add('shifted');
+            setTimeout(() => { map.invalidateSize(); if(chart) chart.resize(); }, 300);
+        };
+
+        window.closePanels = () => {
+            document.getElementById('main-wrapper').classList.remove('shifted');
+            setTimeout(() => { map.invalidateSize(); if(chart) chart.resize(); }, 300);
+        };
+
         let chart;
         let dataStore = { f1: [], f2: [] };
         const paramColors = { heartRate: '#ff0000', speed: '#0000ff', cadence: '#ffff00', power: '#a020f0', altitude: '#00ff00' };
 
         const formatTime = (s) => {
             const abs = Math.abs(s);
-            const h = Math.floor(abs / 3600);
-            const m = Math.floor((abs % 3600) / 60);
-            const sec = Math.floor(abs % 60);
-            return `${s < 0 ? '-' : ''}${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+            const h = Math.floor(abs / 3600).toString().padStart(2, '0');
+            const m = Math.floor((abs % 3600) / 60).toString().padStart(2, '0');
+            const sec = Math.floor(abs % 60).toString().padStart(2, '0');
+            return `${s < 0 ? '-' : ''}${h}:${m}:${sec}`;
         };
 
-        // Mapa
         const map = L.map('map').setView([0, 0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         const layers = { f1: L.featureGroup().addTo(map), f2: L.featureGroup().addTo(map) };
@@ -63,7 +125,6 @@
             f2: L.circleMarker([0,0], {color: 'red', radius: 6, fillOpacity: 1}).addTo(map)
         };
 
-        // Gráfica
         const ctx = document.getElementById('mainChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
@@ -73,24 +134,10 @@
                 interaction: { mode: 'index', intersect: false },
                 scales: { x: { type: 'linear', ticks: { callback: v => formatTime(v) } } },
                 plugins: {
-                    zoom: {
-                        pan: { enabled: true, mode: 'x', threshold: 5 },
-                        zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
-                    },
+                    zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, mode: 'x' } },
                     tooltip: {
                         callbacks: {
                             title: (items) => formatTime(items[0].parsed.x),
-                            footer: (items) => {
-                                const t = items[0].parsed.x;
-                                const off = parseFloat(document.getElementById('offset').value) || 0;
-                                const selected = Array.from(document.querySelectorAll('#metrics input:checked')).map(i => i.value);
-                                return selected.map(m => {
-                                    if (!dataStore.f1.length || !dataStore.f2.length) return "";
-                                    const v1 = dataStore.f1.reduce((a, b) => Math.abs(a.t - t) < Math.abs(b.t - t) ? a : b)[m] || 0;
-                                    const v2 = dataStore.f2.reduce((a, b) => Math.abs((a.t + off) - t) < Math.abs((b.t + off) - t) ? a : b)[m] || 0;
-                                    return `Diff ${m}: ${(v1 - v2).toFixed(1)}`;
-                                }).filter(l => l !== "").join('\n');
-                            },
                             afterBody: (items) => { moveCursors(items[0].parsed.x); return ""; }
                         }
                     }
@@ -98,7 +145,6 @@
             }
         });
 
-        // Funciones (Resumen)
         async function processFit(file, key) {
             if (!file) return;
             const buffer = await file.arrayBuffer();
@@ -117,18 +163,22 @@
 
         function buildMetricSelectors() {
             const div = document.getElementById('metrics');
-            const checked = Array.from(div.querySelectorAll('input[type="checkbox"]:checked')).map(i => i.value);
             div.innerHTML = '';
             const keys = new Set();
             [...dataStore.f1, ...dataStore.f2].forEach(r => Object.keys(r).forEach(k => { if(!['t','lat','lng'].includes(k)) keys.add(k); }));
+            
             Array.from(keys).sort().forEach(m => {
                 if (!paramColors[m]) paramColors[m] = '#999999';
-                const span = document.createElement('span');
-                span.className = 'metric-item'; span.style.color = paramColors[m];
-                span.innerHTML = `<input type="checkbox" value="${m}" ${checked.includes(m) || m === 'heartRate' ? 'checked' : ''}><input type="color" value="${paramColors[m]}" style="width:20px;height:20px;border:none;padding:0;background:none"><span>${m}</span>`;
-                span.querySelector('input[type="checkbox"]').onchange = updateChart;
-                span.querySelector('input[type="color"]').oninput = (e) => { paramColors[m] = e.target.value; span.style.color = e.target.value; updateChart(); };
-                div.appendChild(span);
+                const item = document.createElement('div');
+                item.className = 'metric-item';
+                item.innerHTML = `
+                    <input type="checkbox" value="${m}" ${m === 'heartRate' ? 'checked' : ''}>
+                    <input type="color" value="${paramColors[m]}" style="width:25px;height:25px;border:none;background:none;cursor:pointer">
+                    <span style="flex:1">${m}</span>
+                `;
+                item.querySelector('input[type="checkbox"]').onchange = updateChart;
+                item.querySelector('input[type="color"]').oninput = (e) => { paramColors[m] = e.target.value; updateChart(); };
+                div.appendChild(item);
             });
         }
 
@@ -136,15 +186,20 @@
             const off = parseFloat(document.getElementById('offset').value) || 0;
             const selected = Array.from(document.querySelectorAll('#metrics input[type="checkbox"]:checked')).map(i => i.value);
             chart.data.datasets = [];
-            const scales = { x: { type: 'linear', ticks: { callback: v => formatTime(v) } } };
             selected.forEach((m, i) => {
                 const color = paramColors[m];
-                scales[m] = { type: 'linear', display: true, position: i % 2 === 0 ? 'left' : 'right', title: { display: true, text: m, color: color }, ticks: { color: color }, grid: { drawOnChartArea: i === 0 } };
                 ['f1', 'f2'].forEach(key => {
-                    if (dataStore[key].length) chart.data.datasets.push({ label: `${key.toUpperCase()}: ${m}`, data: dataStore[key].map(d => ({ x: d.t + (key==='f2'?off:0), y: d[m] })), borderColor: color, yAxisID: m, pointRadius: 0, borderWidth: 2, borderDash: key==='f2'?[5,5]:[] });
+                    if (dataStore[key].length) {
+                        chart.data.datasets.push({
+                            label: `${key.toUpperCase()}: ${m}`,
+                            data: dataStore[key].map(d => ({ x: d.t + (key==='f2'?off:0), y: d[m] })),
+                            borderColor: color, yAxisID: 'y', pointRadius: 0, borderWidth: 2,
+                            borderDash: key==='f2'?[5,5]:[]
+                        });
+                    }
                 });
             });
-            chart.options.scales = scales; chart.update();
+            chart.update();
         }
 
         function drawRoute(key) {
@@ -152,8 +207,6 @@
             const color = key === 'f1' ? 'blue' : 'red';
             const pts = dataStore[key].map(d => [d.lat, d.lng]);
             L.polyline(pts, { color: color, weight: 3 }).addTo(layers[key]);
-            L.marker(pts[0], { icon: L.divIcon({ className: '', html: `<div style="color:${color};font-size:16px;transform:translate(-2px,-9px)">▲</div>` }) }).addTo(layers[key]);
-            L.marker(pts[pts.length - 1], { icon: L.divIcon({ className: '', html: `<div class="square" style="background:${color}"></div>`, iconSize: [10, 10] }) }).addTo(layers[key]);
             const allPts = [...dataStore.f1, ...dataStore.f2].map(d => [d.lat, d.lng]);
             if (allPts.length) map.fitBounds(L.latLngBounds(allPts));
         }
