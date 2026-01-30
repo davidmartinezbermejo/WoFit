@@ -105,7 +105,8 @@
         .chart-container {
             width: 80%;
             position: relative;
-            padding: 10px;
+            padding: 10px 10px 40px 10px;
+            /* Añadido 40px abajo */
             box-sizing: border-box;
         }
 
@@ -212,9 +213,11 @@
 
     <div class="toolbar">
         <div class="tool-button" onclick="openPanel('panel-files')"><i class="fas fa-file-import"></i>
-            <span>Archivos</span></div>
+            <span>Archivos</span>
+        </div>
         <div class="tool-button" onclick="openPanel('panel-metrics')"><i class="fas fa-chart-line"></i>
-            <span>Parámetros</span></div>
+            <span>Parámetros</span>
+        </div>
     </div>
 
     <div id="main-wrapper">
@@ -293,7 +296,16 @@
             options: {
                 responsive: true, maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                scales: { x: { type: 'linear', ticks: { callback: v => formatTime(v) } } },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        display: true, // Forzar que sea visible
+                        ticks: {
+                            color: '#333',
+                            callback: v => formatTime(v)
+                        }
+                    }
+                },
                 plugins: {
                     legend: { display: false },
                     zoom: { zoom: { wheel: { enabled: false }, mode: 'x' }, pan: { enabled: true, mode: 'x' } },
@@ -337,12 +349,21 @@
             document.querySelectorAll('.panel-content').forEach(p => p.style.display = 'none');
             document.getElementById(id).style.display = 'block';
             document.getElementById('main-wrapper').classList.add('shifted');
-            setTimeout(() => { map.invalidateSize(); chart.resize(); }, 300);
+            // Esperamos 300ms a que termine la animación
+            setTimeout(() => {
+                map.invalidateSize();
+                chart.resize();
+                chart.update(); // Forzar repintado
+            }, 350);
         };
 
         window.closePanels = () => {
             document.getElementById('main-wrapper').classList.remove('shifted');
-            setTimeout(() => { map.invalidateSize(); chart.resize(); }, 300);
+            setTimeout(() => {
+                map.invalidateSize();
+                chart.resize();
+                chart.update(); // Forzar repintado
+            }, 350);
         };
 
         async function processFit(file, key) {
