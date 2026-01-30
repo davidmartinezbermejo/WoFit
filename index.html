@@ -1,51 +1,220 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="UTF-8">
     <title>FIT Sync Pro</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <style>
-        :root { --panel-width: 300px; }
-        body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #1a1a1a; }
-        .toolbar { background: #2c3e50; color: white; padding: 10px; display: flex; gap: 20px; z-index: 2001; border-bottom: 1px solid #34495e; position: relative; }
-        .tool-button { cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
-        
-        #main-wrapper { display: flex; flex: 1; width: calc(100% + var(--panel-width)); transition: transform 0.3s ease; transform: translateX(calc(-1 * var(--panel-width))); }
-        #main-wrapper.shifted { transform: translateX(0); }
-        
-        .side-panel { width: var(--panel-width); height: 100%; background: #2c3e50; color: white; padding: 20px; box-sizing: border-box; flex-shrink: 0; border-right: 1px solid #444; position: relative; }
-        .panel-content { position: relative; width: 100%; }
-        .close-btn { position: absolute; top: -5px; right: -5px; cursor: pointer; color: #bdc3c7; font-size: 1.4rem; padding: 5px; z-index: 10; }
+        :root {
+            --panel-width: 300px;
+        }
 
-        #content-area { flex: 1; display: flex; flex-direction: column; height: 100%; background: #fff; width: 100vw; }
-        #map { height: 45vh; width: 100%; flex-shrink: 0; }
-        
-        .bottom-section { flex: 1; display: flex; overflow: hidden; border-top: 2px solid #2c3e50; }
-        .chart-container { width: 80%; position: relative; padding: 10px; box-sizing: border-box; }
-        
-        .data-info-panel { width: 20%; background: #f8f9fa; border-left: 1px solid #ddd; padding: 15px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
-        .zoom-controls { display: flex; gap: 5px; }
-        .zoom-controls button { flex: 1; padding: 8px; cursor: pointer; background: #2c3e50; color: white; border: none; border-radius: 4px; font-weight: bold; }
-        
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            background: #1a1a1a;
+        }
+
+        .toolbar {
+            background: #2c3e50;
+            color: white;
+            padding: 10px;
+            display: flex;
+            gap: 20px;
+            z-index: 2001;
+            border-bottom: 1px solid #34495e;
+            position: relative;
+        }
+
+        .tool-button {
+            cursor: pointer;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #main-wrapper {
+            display: flex;
+            flex: 1;
+            width: calc(100% + var(--panel-width));
+            transition: transform 0.3s ease;
+            transform: translateX(calc(-1 * var(--panel-width)));
+        }
+
+        #main-wrapper.shifted {
+            transform: translateX(0);
+        }
+
+        .side-panel {
+            width: var(--panel-width);
+            height: 100%;
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            box-sizing: border-box;
+            flex-shrink: 0;
+            border-right: 1px solid #444;
+            position: relative;
+        }
+
+        .panel-content {
+            position: relative;
+            width: 100%;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            cursor: pointer;
+            color: #bdc3c7;
+            font-size: 1.4rem;
+            padding: 5px;
+            z-index: 10;
+        }
+
+        #content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            background: #fff;
+            width: 100vw;
+        }
+
+        #map {
+            height: 45vh;
+            width: 100%;
+            flex-shrink: 0;
+        }
+
+        .bottom-section {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            border-top: 2px solid #2c3e50;
+        }
+
+        .chart-container {
+            width: 80%;
+            position: relative;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        .data-info-panel {
+            width: 20%;
+            background: #f8f9fa;
+            border-left: 1px solid #ddd;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        .zoom-controls {
+            display: flex;
+            gap: 5px;
+        }
+
+        .zoom-controls button {
+            flex: 1;
+            padding: 8px;
+            cursor: pointer;
+            background: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
         /* Layout de dos columnas para las tarjetas */
-        #tooltip-data { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
-        .data-card { width: 48%; display: flex; flex-direction: column; padding: 8px; background: white; border: 1px solid #ddd; border-radius: 4px; border-left: 4px solid #ccc; box-sizing: border-box; }
-        
-        .card-title { font-size: 10px; font-weight: bold; color: #555; text-transform: uppercase; border-bottom: 1px solid #eee; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .card-row { display: flex; justify-content: space-between; font-size: 12px; color: #333; }
-        .card-row .file-label { font-weight: bold; color: #888; font-size: 10px; }
-        
-        .time-display { width: 100%; font-size: 20px; font-weight: bold; text-align: center; color: #2c3e50; padding: 8px; background: #eef2f7; border-radius: 4px; border: 1px solid #d1d9e4; box-sizing: border-box; }
+        #tooltip-data {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: space-between;
+        }
 
-        .metric-item { display: flex; align-items: center; gap: 10px; padding: 8px; background: #34495e; border-radius: 4px; font-size: 13px; margin-bottom: 8px; color: white; }
+        .data-card {
+            width: 48%;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            border-left: 4px solid #ccc;
+            box-sizing: border-box;
+        }
+
+        .card-title {
+            font-size: 10px;
+            font-weight: bold;
+            color: #555;
+            text-transform: uppercase;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .card-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #333;
+        }
+
+        .card-row .file-label {
+            font-weight: bold;
+            color: #888;
+            font-size: 10px;
+        }
+
+        .time-display {
+            width: 100%;
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            color: #2c3e50;
+            padding: 8px;
+            background: #eef2f7;
+            border-radius: 4px;
+            border: 1px solid #d1d9e4;
+            box-sizing: border-box;
+        }
+
+        .metric-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            background: #34495e;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 8px;
+            color: white;
+        }
     </style>
 </head>
+
 <body>
 
     <div class="toolbar">
-        <div class="tool-button" onclick="openPanel('panel-files')"><i class="fas fa-file-import"></i> <span>Archivos</span></div>
-        <div class="tool-button" onclick="openPanel('panel-metrics')"><i class="fas fa-chart-line"></i> <span>Parámetros</span></div>
+        <div class="tool-button" onclick="openPanel('panel-files')"><i class="fas fa-file-import"></i>
+            <span>Archivos</span></div>
+        <div class="tool-button" onclick="openPanel('panel-metrics')"><i class="fas fa-chart-line"></i>
+            <span>Parámetros</span></div>
     </div>
 
     <div id="main-wrapper">
@@ -78,9 +247,12 @@
                         <button id="resetZoom">Reset</button>
                     </div>
                     <div id="tooltip-display">
-                        <h4 style="margin:0 0 10px 0; border-bottom: 1px solid #ccc; padding-bottom: 5px; font-size: 14px;">Comparativa</h4>
+                        <h4
+                            style="margin:0 0 10px 0; border-bottom: 1px solid #ccc; padding-bottom: 5px; font-size: 14px;">
+                            Comparativa</h4>
                         <div id="tooltip-data">
-                            <p style="color:#888; font-size: 12px; text-align: center; width: 100%;">Mueve el ratón sobre la gráfica</p>
+                            <p style="color:#888; font-size: 12px; text-align: center; width: 100%;">Mueve el ratón
+                                sobre la gráfica</p>
                         </div>
                     </div>
                 </div>
@@ -110,8 +282,8 @@
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         const layers = { f1: L.featureGroup().addTo(map), f2: L.featureGroup().addTo(map) };
         const cursors = {
-            f1: L.circleMarker([0,0], {color: 'blue', radius: 6, fillOpacity: 1}).addTo(map),
-            f2: L.circleMarker([0,0], {color: 'red', radius: 6, fillOpacity: 1}).addTo(map)
+            f1: L.circleMarker([0, 0], { color: 'blue', radius: 6, fillOpacity: 1 }).addTo(map),
+            f2: L.circleMarker([0, 0], { color: 'red', radius: 6, fillOpacity: 1 }).addTo(map)
         };
 
         const ctx = document.getElementById('mainChart').getContext('2d');
@@ -127,20 +299,20 @@
                     zoom: { zoom: { wheel: { enabled: false }, mode: 'x' }, pan: { enabled: true, mode: 'x' } },
                     tooltip: {
                         enabled: false,
-                        external: function(context) {
+                        external: function (context) {
                             const container = document.getElementById('tooltip-data');
                             if (context.tooltip.opacity === 0) return;
 
                             const timeSec = parseFloat(context.tooltip.title[0]);
                             let html = `<div class="time-display">${formatTime(timeSec)}</div>`;
-                            
+
                             const groups = {};
                             context.tooltip.body.forEach((body, i) => {
                                 const ds = chart.data.datasets[i];
                                 const parts = ds.label.split(' ');
                                 const fileKey = parts[0];
                                 const metricName = parts.slice(1).join(' ');
-                                
+
                                 if (!groups[metricName]) groups[metricName] = { color: ds.borderColor, f1: '-', f2: '-' };
                                 groups[metricName][fileKey.toLowerCase()] = body.lines[0].split(':')[1];
                             });
@@ -179,12 +351,29 @@
             const decoder = new Decoder(Stream.fromByteArray(new Uint8Array(buffer)));
             const { messages } = decoder.read();
             const records = (messages.recordMesgs || []).filter(m => m.positionLat);
+            if (!records.length) return;
+
             const startT = records[0].timestamp.getTime();
             dataStore[key] = records.map(m => {
-                const obj = { t: (m.timestamp.getTime() - startT) / 1000, lat: m.positionLat * (180/2147483648), lng: m.positionLong * (180/2147483648) };
-                for (let k in m) if (typeof m[k] === 'number') obj[k] = m[k];
+                const obj = {
+                    t: (m.timestamp.getTime() - startT) / 1000,
+                    lat: m.positionLat * (180 / 2147483648),
+                    lng: m.positionLong * (180 / 2147483648)
+                };
+
+                for (let k in m) {
+                    if (typeof m[k] === 'number') {
+                        // Conversión de speed: de m/s a km/h
+                        if (k === 'speed') {
+                            obj[k] = parseFloat((m[k] * 3.6).toFixed(2));
+                        } else {
+                            obj[k] = m[k];
+                        }
+                    }
+                }
                 return obj;
             });
+
             drawRoute(key);
             buildMetricSelectors();
             window.updateChartGlobal();
@@ -201,7 +390,7 @@
         function buildMetricSelectors() {
             const div = document.getElementById('metrics');
             const keys = new Set();
-            [...dataStore.f1, ...dataStore.f2].forEach(r => Object.keys(r).forEach(k => { if(!['t','lat','lng'].includes(k)) keys.add(k); }));
+            [...dataStore.f1, ...dataStore.f2].forEach(r => Object.keys(r).forEach(k => { if (!['t', 'lat', 'lng'].includes(k)) keys.add(k); }));
             div.innerHTML = Array.from(keys).sort().map(m => {
                 if (!paramColors[m]) paramColors[m] = '#999';
                 return `<div class="metric-item">
@@ -228,10 +417,10 @@
                     afterDataLimits: (axis) => { const range = axis.max - axis.min; const p = range === 0 ? 1 : range * 0.5; axis.min -= p; axis.max += p; }
                 };
                 ['f1', 'f2'].forEach(key => {
-                    if (dataStore[key].length) chart.data.datasets.push({ 
-                        label: `${key.toUpperCase()} ${m}`, 
-                        data: dataStore[key].map(d => ({ x: d.t + (key==='f2'?off:0), y: d[m] })), 
-                        borderColor: color, yAxisID: axisId, pointRadius: 0, borderWidth: 2, borderDash: key==='f2'?[5,5]:[] 
+                    if (dataStore[key].length) chart.data.datasets.push({
+                        label: `${key.toUpperCase()} ${m}`,
+                        data: dataStore[key].map(d => ({ x: d.t + (key === 'f2' ? off : 0), y: d[m] })),
+                        borderColor: color, yAxisID: axisId, pointRadius: 0, borderWidth: 2, borderDash: key === 'f2' ? [5, 5] : []
                     });
                 });
             });
@@ -259,4 +448,5 @@
         window.openPanel('panel-files');
     </script>
 </body>
+
 </html>
