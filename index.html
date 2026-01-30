@@ -69,12 +69,10 @@
     <script type="module">
         import { Decoder, Stream } from 'https://cdn.jsdelivr.net/npm/@garmin/fitsdk@21.126.0/+esm';
 
-        // 1. Estado y variables globales dentro del módulo
         let chart;
         let dataStore = { f1: [], f2: [] };
         const paramColors = { heartRate: '#ff0000', speed: '#0000ff', cadence: '#ffff00', power: '#a020f0', altitude: '#00ff00' };
 
-        // 2. Configuración de Mapa
         const map = L.map('map').setView([0, 0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         const layers = { f1: L.featureGroup().addTo(map), f2: L.featureGroup().addTo(map) };
@@ -83,7 +81,6 @@
             f2: L.circleMarker([0,0], {color: 'red', radius: 6, fillOpacity: 1}).addTo(map)
         };
 
-        // 3. Inicialización de Gráfica
         const ctx = document.getElementById('mainChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
@@ -97,7 +94,6 @@
             }
         });
 
-        // 4. Funciones de Interfaz (Exportadas a window)
         window.openPanel = (id) => {
             document.querySelectorAll('.panel-content').forEach(p => p.style.display = 'none');
             document.getElementById(id).style.display = 'block';
@@ -110,7 +106,6 @@
             setTimeout(() => { map.invalidateSize(); chart.resize(); }, 300);
         };
 
-        // 5. Lógica de Datos
         async function processFit(file, key) {
             if (!file) return;
             const buffer = await file.arrayBuffer();
@@ -136,75 +131,53 @@
             const color = key === 'f1' ? 'blue' : 'red';
             const pts = dataStore[key].map(d => [d.lat, d.lng]);
             L.polyline(pts, { color: color, weight: 3 }).addTo(layers[key]);
-            const allPts = [...dataStore.f1, ...dataStore.f2].map(d => [d.lat, d.lng]);
-            if (allPts.length) map.fitBounds(L.latLngBounds(allPts));
+            if (pts.length) map.fitBounds(L.latLngBounds([...dataStore.f1, ...dataStore.f2].map(d => [d.lat, d.lng])));
         }
 
         function buildMetricSelectors() {
             const div = document.getElementById('metrics');
             const keys = new Set();
-            [...dataStore.f1, ...dataStore.f2].forEach(r => Object.keys(r).forEach(k => { 
-                if(!['t','lat','lng'].includes(k)) keys.add(k); 
-            }));
-
+            [...dataStore.f1, ...dataStore.f2].forEach(r => Object.keys(r).forEach(k => { if(!['t','lat','lng'].includes(k)) keys.add(k); }));
             div.innerHTML = Array.from(keys).sort().map(m => {
                 if (!paramColors[m]) paramColors[m] = '#999';
-                return `
-                    <div class="metric-item">
-                        <input type="checkbox" value="${m}" ${m === 'heartRate' ? 'checked' : ''} onchange="window.updateChartGlobal()">
-                        <input type="color" value="${paramColors[m]}" oninput="window.updateParamColor('${m}', this.value)">
-                        <span>${m}</span>
-                    </div>`;
+                return `<div class="metric-item"><input type="checkbox" value="${m}" ${m === 'heartRate' ? 'checked' : ''} onchange="window.updateChartGlobal()"><input type="color" value="${paramColors[m]}" oninput="window.updateParamColor('${m}', this.value)"><span>${m}</span></div>`;
             }).join('');
         }
 
-        window.updateParamColor = (metric, color) => {
-            paramColors[metric] = color;
-            window.updateChartGlobal();
-        };
+        window.updateParamColor = (metric, color) => { paramColors[metric] = color; window.updateChartGlobal(); };
 
         window.updateChartGlobal = () => {
             const off = parseFloat(document.getElementById('offset').value) || 0;
             const selected = Array.from(document.querySelectorAll('#metrics input[type="checkbox"]:checked')).map(i => i.value);
-            
             chart.data.datasets = [];
             const newScales = { x: chart.options.scales.x };
-
             selected.forEach((m, i) => {
                 const color = paramColors[m];
                 const axisId = `y-${m}`;
                 newScales[axisId] = {
                     type: 'linear', display: true, position: 'left',
                     title: { display: true, text: m, color: color },
-                    ticks: { color: color },
-                    grid: { drawOnChartArea: i === 0 },
-                    afterDataLimits: (axis) => {
-                        const range = axis.max - axis.min;
-                        const p = range === 0 ? 1 : range * 0.5;
-                        axis.min -= p; axis.max += p;
-                    }
+                    ticks: { color: color }, grid: { drawOnChartArea: i === 0 },
+                    afterDataLimits: (axis) => { const range = axis.max - axis.min; const p = range === 0 ? 1 : range * 0.5; axis.min -= p; axis.max += p; }
                 };
                 ['f1', 'f2'].forEach(key => {
-                    if (dataStore[key].length) {
-                        chart.data.datasets.push({
-                            label: `${key.toUpperCase()}: ${m}`,
-                            data: dataStore[key].map(d => ({ x: d.t + (key==='f2'?off:0), y: d[m] })),
-                            borderColor: color, yAxisID: axisId, pointRadius: 0, borderWidth: 2, borderDash: key==='f2'?[5,5]:[]
-                        });
-                    }
+                    if (dataStore[key].length) chart.data.datasets.push({ label: `${key.toUpperCase()}: ${m}`, data: dataStore[key].map(d => ({ x: d.t + (key==='f2'?off:0), y: d[m] })), borderColor: color, yAxisID: axisId, pointRadius: 0, borderWidth: 2, borderDash: key==='f2'?[5,5]:[] });
                 });
             });
             chart.options.scales = newScales;
             chart.update();
         };
 
-        // 6. Listeners Finales
         document.getElementById('file1').onchange = e => processFit(e.target.files[0], 'f1');
         document.getElementById('file2').onchange = e => processFit(e.target.files[0], 'f2');
         document.getElementById('offset').oninput = window.updateChartGlobal;
         document.getElementById('zoomIn').onclick = () => chart.zoom(1.1);
         document.getElementById('zoomOut').onclick = () => chart.zoom(0.9);
         document.getElementById('resetZoom').onclick = () => chart.resetZoom();
+
+        // INICIO: Desplegar panel de archivos por defecto
+        window.openPanel('panel-files');
+        
     </script>
 </body>
 </html>
