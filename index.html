@@ -402,10 +402,23 @@
 
         function drawRoute(key) {
             layers[key].clearLayers();
+            const off = key === 'f2' ? parseFloat(document.getElementById('offset').value) || 0 : 0;
             const color = key === 'f1' ? 'blue' : 'red';
-            const pts = dataStore[key].map(d => [d.lat, d.lng]);
-            L.polyline(pts, { color: color, weight: 3 }).addTo(layers[key]);
-            if (pts.length) map.fitBounds(L.latLngBounds([...dataStore.f1, ...dataStore.f2].map(d => [d.lat, d.lng])));
+
+            // Filtramos puntos: si el offset es 10, solo mostramos puntos de F2 desde t=10 en adelante
+            // (o si es negativo, desde que el tiempo resultante sea >= 0)
+            const pts = dataStore[key]
+                .filter(d => (d.t + (key === 'f2' ? off : 0)) >= 0)
+                .map(d => [d.lat, d.lng]);
+
+            if (pts.length > 0) {
+                L.polyline(pts, { color: color, weight: 3 }).addTo(layers[key]);
+                const allVisiblePts = [
+                    ...dataStore.f1.map(d => [d.lat, d.lng]),
+                    ...dataStore.f2.filter(d => d.t + off >= 0).map(d => [d.lat, d.lng])
+                ];
+                if (allVisiblePts.length) map.fitBounds(L.latLngBounds(allVisiblePts));
+            }
         }
 
         function buildMetricSelectors() {
@@ -427,26 +440,46 @@
         window.updateChartGlobal = () => {
             const off = parseFloat(document.getElementById('offset').value) || 0;
             const selected = Array.from(document.querySelectorAll('#metrics input[type="checkbox"]:checked')).map(i => i.value);
+
             chart.data.datasets = [];
             const newScales = { x: chart.options.scales.x };
+
             selected.forEach((m, i) => {
                 const color = paramColors[m];
                 const axisId = `y-${m}`;
                 newScales[axisId] = {
                     type: 'linear', display: true, position: 'left',
                     ticks: { color: color }, grid: { drawOnChartArea: i === 0 },
-                    afterDataLimits: (axis) => { const range = axis.max - axis.min; const p = range === 0 ? 1 : range * 0.5; axis.min -= p; axis.max += p; }
+                    afterDataLimits: (axis) => {
+                        const range = axis.max - axis.min;
+                        const p = range === 0 ? 1 : range * 0.5;
+                        axis.min -= p; axis.max += p;
+                    }
                 };
+
                 ['f1', 'f2'].forEach(key => {
-                    if (dataStore[key].length) chart.data.datasets.push({
-                        label: `${key.toUpperCase()} ${m}`,
-                        data: dataStore[key].map(d => ({ x: d.t + (key === 'f2' ? off : 0), y: d[m] })),
-                        borderColor: color, yAxisID: axisId, pointRadius: 0, borderWidth: 2, borderDash: key === 'f2' ? [5, 5] : []
-                    });
+                    if (dataStore[key].length) {
+                        const o = key === 'f2' ? off : 0;
+                        // FILTRO: Solo datos donde el tiempo con offset sea >= 0
+                        const filteredData = dataStore[key]
+                            .filter(d => (d.t + o) >= 0)
+                            .map(d => ({ x: d.t + o, y: d[m] }));
+
+                        chart.data.datasets.push({
+                            label: `${key.toUpperCase()} ${m}`,
+                            data: filteredData,
+                            borderColor: color, yAxisID: axisId, pointRadius: 0, borderWidth: 2,
+                            borderDash: key === 'f2' ? [5, 5] : []
+                        });
+                    }
                 });
             });
             chart.options.scales = newScales;
             chart.update();
+
+            // También refrescamos el mapa para que elimine los puntos sobrantes
+            drawRoute('f1');
+            drawRoute('f2');
         };
 
         function moveCursors(t) {
