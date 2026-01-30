@@ -8,27 +8,18 @@
     <style>
         :root { --panel-width: 300px; }
         body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #1a1a1a; }
-        
         .toolbar { background: #2c3e50; color: white; padding: 10px; display: flex; gap: 20px; z-index: 2001; border-bottom: 1px solid #34495e; position: relative; }
         .tool-button { cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; transition: color 0.2s; }
         .tool-button:hover { color: #3498db; }
-
         #main-wrapper { display: flex; flex: 1; width: calc(100% + var(--panel-width)); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); transform: translateX(calc(-1 * var(--panel-width))); }
         #main-wrapper.shifted { transform: translateX(0); }
-
         .side-panel { width: var(--panel-width); height: 100%; background: #2c3e50; color: white; padding: 20px; box-sizing: border-box; flex-shrink: 0; overflow-y: auto; position: relative; z-index: 2100; border-right: 1px solid #444; }
         .panel-content { position: relative; }
         .panel-content h3 { margin-top: 0; border-bottom: 1px solid #555; padding-bottom: 10px; font-size: 1.1rem; padding-right: 30px; }
-        
-        /* Botón X de cierre */
-        .close-btn { position: absolute; top: 0; right: 0; cursor: pointer; font-size: 1.2rem; color: #bdc3c7; transition: color 0.2s; }
-        .close-btn:hover { color: #e74c3c; }
-
+        .close-btn { position: absolute; top: 0; right: 0; cursor: pointer; font-size: 1.2rem; color: #bdc3c7; }
         #content-area { flex: 1; display: flex; flex-direction: column; height: 100%; background: #fff; width: 100vw; position: relative; }
-        
         #map { height: 45vh; width: 100%; background: #ddd; flex-shrink: 0; }
         .chart-container { flex: 1; padding: 10px; background: white; min-height: 0; position: relative; }
-        
         .config-group { display: flex; flex-direction: column; gap: 15px; margin-top: 15px; }
         .config-group label { font-size: 12px; color: #bdc3c7; display: block; margin-bottom: 4px; }
         #metrics { display: flex; flex-direction: column; gap: 8px; }
@@ -39,12 +30,8 @@
 <body>
 
     <div class="toolbar">
-        <div class="tool-button" onclick="openPanel('panel-files')">
-            <i class="fas fa-file-import"></i> <span>Archivos</span>
-        </div>
-        <div class="tool-button" onclick="openPanel('panel-metrics')">
-            <i class="fas fa-chart-line"></i> <span>Parámetros</span>
-        </div>
+        <div class="tool-button" onclick="openPanel('panel-files')"><i class="fas fa-file-import"></i> <span>Archivos</span></div>
+        <div class="tool-button" onclick="openPanel('panel-metrics')"><i class="fas fa-chart-line"></i> <span>Parámetros</span></div>
     </div>
 
     <div id="main-wrapper">
@@ -53,25 +40,15 @@
                 <i class="fas fa-times close-btn" onclick="closePanels()"></i>
                 <h3>Archivos y Offset</h3>
                 <div class="config-group">
-                    <div>
-                        <label>Archivo 1 (F1):</label>
-                        <input type="file" id="file1" style="width:100%">
-                    </div>
-                    <div>
-                        <label>Archivo 2 (F2):</label>
-                        <input type="file" id="file2" style="width:100%">
-                    </div>
-                    <div>
-                        <label>Offset F2 (segundos):</label>
-                        <input type="number" id="offset" value="0" style="width:100%; box-sizing: border-box;">
-                    </div>
+                    <div><label>F1:</label><input type="file" id="file1" style="width:100%"></div>
+                    <div><label>F2:</label><input type="file" id="file2" style="width:100%"></div>
+                    <div><label>Offset F2 (seg):</label><input type="number" id="offset" value="0" style="width:100%"></div>
                 </div>
             </div>
-
             <div id="panel-metrics" class="panel-content" style="display:none">
                 <i class="fas fa-times close-btn" onclick="closePanels()"></i>
                 <h3>Métricas y Colores</h3>
-                <div id="metrics"><p style="font-size:12px; color:#bdc3c7;">Carga archivos para ver métricas.</p></div>
+                <div id="metrics"></div>
             </div>
         </aside>
 
@@ -85,24 +62,21 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
 
     <script type="module">
         import { Decoder, Stream } from 'https://cdn.jsdelivr.net/npm/@garmin/fitsdk@21.126.0/+esm';
 
-        window.openPanel = (contentId) => {
-            const wrapper = document.getElementById('main-wrapper');
+        window.openPanel = (id) => {
             document.querySelectorAll('.panel-content').forEach(p => p.style.display = 'none');
-            document.getElementById(contentId).style.display = 'block';
-            wrapper.classList.add('shifted');
-            setTimeout(() => { map.invalidateSize(); if(chart) chart.resize(); }, 300);
+            document.getElementById(id).style.display = 'block';
+            document.getElementById('main-wrapper').classList.add('shifted');
+            setTimeout(() => { map.invalidateSize(); chart.resize(); }, 300);
         };
-
         window.closePanels = () => {
             document.getElementById('main-wrapper').classList.remove('shifted');
-            setTimeout(() => { map.invalidateSize(); if(chart) chart.resize(); }, 300);
+            setTimeout(() => { map.invalidateSize(); chart.resize(); }, 300);
         };
 
         let chart;
@@ -163,6 +137,7 @@
 
         function buildMetricSelectors() {
             const div = document.getElementById('metrics');
+            const checked = Array.from(div.querySelectorAll('input[type="checkbox"]:checked')).map(i => i.value);
             div.innerHTML = '';
             const keys = new Set();
             [...dataStore.f1, ...dataStore.f2].forEach(r => Object.keys(r).forEach(k => { if(!['t','lat','lng'].includes(k)) keys.add(k); }));
@@ -172,7 +147,7 @@
                 const item = document.createElement('div');
                 item.className = 'metric-item';
                 item.innerHTML = `
-                    <input type="checkbox" value="${m}" ${m === 'heartRate' ? 'checked' : ''}>
+                    <input type="checkbox" value="${m}" ${checked.includes(m) || (checked.length === 0 && m === 'heartRate') ? 'checked' : ''}>
                     <input type="color" value="${paramColors[m]}" style="width:25px;height:25px;border:none;background:none;cursor:pointer">
                     <span style="flex:1">${m}</span>
                 `;
@@ -185,20 +160,50 @@
         function updateChart() {
             const off = parseFloat(document.getElementById('offset').value) || 0;
             const selected = Array.from(document.querySelectorAll('#metrics input[type="checkbox"]:checked')).map(i => i.value);
+            
             chart.data.datasets = [];
+            const newScales = { x: chart.options.scales.x };
+
             selected.forEach((m, i) => {
                 const color = paramColors[m];
+                const axisId = `y-${m}`;
+
+                // Configuración del eje individual
+                newScales[axisId] = {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: { display: true, text: m, color: color },
+                    ticks: { color: color },
+                    grid: { 
+                        drawOnChartArea: i === 0, // Solo el primer eje dibuja la cuadrícula principal
+                        color: i === 0 ? '#ddd' : 'transparent'
+                    },
+                    // ALGORITMO DE CENTRADO: Calculamos límites dinámicos para centrar la línea
+                    afterDataLimits: (axis) => {
+                        const range = axis.max - axis.min;
+                        const padding = range === 0 ? 1 : range * 0.5; // Margen del 50% arriba/abajo
+                        axis.min -= padding;
+                        axis.max += padding;
+                    }
+                };
+
                 ['f1', 'f2'].forEach(key => {
                     if (dataStore[key].length) {
                         chart.data.datasets.push({
                             label: `${key.toUpperCase()}: ${m}`,
                             data: dataStore[key].map(d => ({ x: d.t + (key==='f2'?off:0), y: d[m] })),
-                            borderColor: color, yAxisID: 'y', pointRadius: 0, borderWidth: 2,
+                            borderColor: color,
+                            yAxisID: axisId, // Cada dataset se vincula a su propio eje
+                            pointRadius: 0,
+                            borderWidth: 2,
                             borderDash: key==='f2'?[5,5]:[]
                         });
                     }
                 });
             });
+
+            chart.options.scales = newScales;
             chart.update();
         }
 
