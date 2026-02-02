@@ -210,11 +210,9 @@
 <body>
     <div class="toolbar">
         <div class="tool-button" onclick="openPanel('panel-files')"><i class="fas fa-file-import"></i>
-            <span>Archivos</span>
-        </div>
+            <span>Archivos</span></div>
         <div class="tool-button" onclick="openPanel('panel-metrics')"><i class="fas fa-chart-line"></i>
-            <span>Parámetros</span>
-        </div>
+            <span>Parámetros</span></div>
     </div>
 
     <div id="main-wrapper">
@@ -228,8 +226,8 @@
                 <input type="number" id="offset" value="0" style="width:100%">
 
                 <div style="margin-top: 20px; display: flex; gap: 5px;">
-                    <button onclick="exportToCSV('f1')" style="flex:1; padding:8px; cursor:pointer;">Exportar F1</button>
-                    <button onclick="exportToCSV('f2')" style="flex:1; padding:8px; cursor:pointer;">Exportar F2</button>
+                    <button onclick="exportToCSV('f1')" style="flex:1; padding:8px; cursor:pointer;">CSV F1</button>
+                    <button onclick="exportToCSV('f2')" style="flex:1; padding:8px; cursor:pointer;">CSV F2</button>
                 </div>
             </div>
             <div id="panel-metrics" class="panel-content" style="display:none">
@@ -256,8 +254,8 @@
                             style="margin:0 0 10px 0; border-bottom: 1px solid #ccc; padding-bottom: 5px; font-size: 14px;">
                             Comparativa</h4>
                         <div id="tooltip-data">
-                            <p style="color:#888; font-size: 12px; text-align: center; width: 100%;">Mueve el ratón
-                                sobre la gráfica</p>
+                            <p style="color:#888; font-size: 12px; text-align: center; width: 100%;">Carga archivos para
+                                comparar</p>
                         </div>
                     </div>
                 </div>
@@ -299,9 +297,7 @@
             options: {
                 responsive: true, maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                scales: {
-                    x: { type: 'linear', display: true, ticks: { color: '#333', callback: v => formatTime(v) } }
-                },
+                scales: { x: { type: 'linear', display: true, ticks: { callback: v => formatTime(v) } } },
                 plugins: {
                     legend: { display: false },
                     zoom: { zoom: { wheel: { enabled: false }, mode: 'x' }, pan: { enabled: true, mode: 'x' } },
@@ -335,6 +331,28 @@
             }
         });
 
+        function autoCenterMap() {
+            const allPoints = [];
+            const off = parseFloat(document.getElementById('offset').value) || 0;
+
+            ['f1', 'f2'].forEach(key => {
+                if (dataStore[key].length > 0) {
+                    const o = key === 'f2' ? off : 0;
+                    // Solo consideramos puntos que tengan GPS y que estén dentro del rango visible (offset)
+                    dataStore[key].forEach(d => {
+                        if (d.lat !== null && (d.t + o) >= 0) {
+                            allPoints.push([d.lat, d.lng]);
+                        }
+                    });
+                }
+            });
+
+            if (allPoints.length > 0) {
+                const bounds = L.latLngBounds(allPoints);
+                map.fitBounds(bounds, { padding: [30, 30] }); // El padding deja margen en los bordes
+            }
+        }
+
         window.openPanel = (id) => {
             document.querySelectorAll('.panel-content').forEach(p => p.style.display = 'none');
             document.getElementById(id).style.display = 'block';
@@ -345,40 +363,6 @@
         window.closePanels = () => {
             document.getElementById('main-wrapper').classList.remove('shifted');
             setTimeout(() => { map.invalidateSize(); chart.resize(); chart.update(); }, 350);
-        };
-
-        window.exportToCSV = (key) => {
-            const data = dataStore[key];
-            if (!data || data.length === 0) {
-                alert("Carga un archivo primero");
-                return;
-            }
-
-            // 1. Obtener todas las cabeceras únicas de todos los registros
-            const headerSet = new Set();
-            data.forEach(row => Object.keys(row).forEach(h => headerSet.add(h)));
-            const headers = Array.from(headerSet);
-
-            // 2. Crear las filas
-            const csvRows = [];
-            csvRows.push(headers.join(',')); // Cabecera
-
-            for (const row of data) {
-                const values = headers.map(header => {
-                    const val = row[header] !== undefined ? row[header] : "";
-                    // Escapar strings que contengan comas
-                    return typeof val === 'string' ? `"${val}"` : val;
-                });
-                csvRows.push(values.join(','));
-            }
-
-            // 3. Descarga
-            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `full_export_${key}.csv`;
-            link.click();
         };
 
         async function processFit(file, key) {
@@ -397,29 +381,16 @@
                     lastLat = m.positionLat * (180 / 2147483648);
                     lastLng = m.positionLong * (180 / 2147483648);
                 }
-
-                // Objeto base con tiempo y posición
-                const obj = {
-                    t_relative: (m.timestamp.getTime() - startT) / 1000,
-                    timestamp: m.timestamp.toISOString(),
-                    lat: lastLat,
-                    lng: lastLng
-                };
-
-                // Iterar por todas las propiedades del mensaje FIT
+                const obj = { t: (m.timestamp.getTime() - startT) / 1000, lat: lastLat, lng: lastLng };
                 for (let k in m) {
-                    if (k === 'positionLat' || k === 'positionLong' || k === 'timestamp') continue;
-
-                    let val = m[k];
-                    // Conversión específica de velocidad si es el campo speed
-                    if (k === 'speed' && typeof val === 'number') {
-                        obj['speed_kmh'] = parseFloat((val * 3.6).toFixed(2));
+                    if (typeof m[k] === 'number') {
+                        obj[k] = (k === 'speed') ? parseFloat((m[k] * 3.6).toFixed(2)) : m[k];
+                    } else {
+                        obj[k] = m[k];
                     }
-                    obj[k] = val;
                 }
                 return obj;
             });
-
             buildMetricSelectors();
             window.updateChartGlobal();
         }
@@ -448,16 +419,20 @@
             });
             chart.options.scales = newScales;
             chart.update();
-            ['f1', 'f2'].forEach(k => drawRoute(k, 999999));
+
+            // Dibujamos rutas completas
+            drawRoute('f1', 999999);
+            drawRoute('f2', 999999);
+
+            // AUTO-ZOOM AQUÍ
+            autoCenterMap();
         };
 
         function drawRoute(key, limitT) {
             layers[key].clearLayers();
             const off = key === 'f2' ? parseFloat(document.getElementById('offset').value) || 0 : 0;
-            const pts = dataStore[key].filter(d => (d.t + off) >= 0 && (d.t + off) <= limitT).filter(d => d.lat !== null).map(d => [d.lat, d.lng]);
-            if (pts.length) {
-                L.polyline(pts, { color: key === 'f1' ? 'blue' : 'red', weight: 3 }).addTo(layers[key]);
-            }
+            const pts = dataStore[key].filter(d => (d.t + off) >= 0 && (d.t + off) <= limitT && d.lat !== null).map(d => [d.lat, d.lng]);
+            if (pts.length) L.polyline(pts, { color: key === 'f1' ? 'blue' : 'red', weight: 3 }).addTo(layers[key]);
         }
 
         function buildMetricSelectors() {
@@ -486,6 +461,18 @@
                 else cursors[key].setOpacity(0);
             });
         }
+
+        window.exportToCSV = (key) => {
+            const data = dataStore[key];
+            if (!data || !data.length) return alert("Carga un archivo primero");
+            const headers = Array.from(new Set(data.flatMap(d => Object.keys(d))));
+            const csv = [headers.join(','), ...data.map(d => headers.map(h => typeof d[h] === 'string' ? `"${d[h]}"` : (d[h] ?? "")).join(','))].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `full_export_${key}.csv`;
+            link.click();
+        };
 
         window.updateParamColor = (m, c) => { paramColors[m] = c; window.updateChartGlobal(); };
         document.getElementById('file1').onchange = e => processFit(e.target.files[0], 'f1');
