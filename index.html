@@ -105,8 +105,7 @@
         .chart-container {
             width: 80%;
             position: relative;
-            padding: 10px 10px 40px 10px;
-            /* Añadido 40px abajo */
+            padding: 10px 10px 45px 10px;
             box-sizing: border-box;
         }
 
@@ -137,7 +136,6 @@
             font-weight: bold;
         }
 
-        /* Layout de dos columnas para las tarjetas */
         #tooltip-data {
             display: flex;
             flex-wrap: wrap;
@@ -210,7 +208,6 @@
 </head>
 
 <body>
-
     <div class="toolbar">
         <div class="tool-button" onclick="openPanel('panel-files')"><i class="fas fa-file-import"></i>
             <span>Archivos</span>
@@ -222,13 +219,18 @@
 
     <div id="main-wrapper">
         <aside class="side-panel">
-            <div id="panel-files" class="panel-content" style="display:none">
+            <div id="panel-files" class="panel-content">
                 <i class="fas fa-times close-btn" onclick="closePanels()"></i>
                 <h3>Archivos y Offset</h3>
                 <input type="file" id="file1" style="width:100%; margin-bottom:10px;">
                 <input type="file" id="file2" style="width:100%; margin-bottom:10px;">
                 <label style="font-size:12px">Offset F2 (seg):</label>
                 <input type="number" id="offset" value="0" style="width:100%">
+
+                <div style="margin-top: 20px; display: flex; gap: 5px;">
+                    <button onclick="exportToCSV('f1')" style="flex:1; padding:8px; cursor:pointer;">Exportar F1</button>
+                    <button onclick="exportToCSV('f2')" style="flex:1; padding:8px; cursor:pointer;">Exportar F2</button>
+                </div>
             </div>
             <div id="panel-metrics" class="panel-content" style="display:none">
                 <i class="fas fa-times close-btn" onclick="closePanels()"></i>
@@ -275,10 +277,11 @@
         const paramColors = { heartRate: '#ff0000', speed: '#0000ff', cadence: '#ffff00', power: '#a020f0', altitude: '#00ff00' };
 
         const formatTime = (s) => {
-            const h = Math.floor(s / 3600);
-            const m = Math.floor((s % 3600) / 60);
-            const sec = Math.floor(s % 60);
-            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+            if (isNaN(s) || s < 0) return "00:00:00";
+            const h = Math.floor(s / 3600).toString().padStart(2, '0');
+            const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
+            const sec = Math.floor(s % 60).toString().padStart(2, '0');
+            return `${h}:${m}:${sec}`;
         };
 
         const map = L.map('map').setView([0, 0], 2);
@@ -297,14 +300,7 @@
                 responsive: true, maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
                 scales: {
-                    x: {
-                        type: 'linear',
-                        display: true, // Forzar que sea visible
-                        ticks: {
-                            color: '#333',
-                            callback: v => formatTime(v)
-                        }
-                    }
+                    x: { type: 'linear', display: true, ticks: { color: '#333', callback: v => formatTime(v) } }
                 },
                 plugins: {
                     legend: { display: false },
@@ -314,28 +310,22 @@
                         external: function (context) {
                             const container = document.getElementById('tooltip-data');
                             if (context.tooltip.opacity === 0) return;
-
                             const timeSec = parseFloat(context.tooltip.title[0]);
                             let html = `<div class="time-display">${formatTime(timeSec)}</div>`;
-
                             const groups = {};
                             context.tooltip.body.forEach((body, i) => {
                                 const ds = chart.data.datasets[i];
-                                const parts = ds.label.split(' ');
-                                const fileKey = parts[0];
-                                const metricName = parts.slice(1).join(' ');
-
-                                if (!groups[metricName]) groups[metricName] = { color: ds.borderColor, f1: '-', f2: '-' };
+                                const labelParts = ds.label.split(' ');
+                                const fileKey = labelParts[0], metricName = labelParts.slice(1).join(' ');
+                                if (!groups[metricName]) groups[metricName] = { color: ds.borderColor, f1: '---', f2: '---' };
                                 groups[metricName][fileKey.toLowerCase()] = body.lines[0].split(':')[1];
                             });
-
                             for (const [name, data] of Object.entries(groups)) {
-                                html += `
-                                    <div class="data-card" style="border-left-color: ${data.color}">
-                                        <div class="card-title">${name}</div>
-                                        <div class="card-row"><span class="file-label">F1:</span> <span>${data.f1}</span></div>
-                                        <div class="card-row"><span class="file-label">F2:</span> <span>${data.f2}</span></div>
-                                    </div>`;
+                                html += `<div class="data-card" style="border-left-color: ${data.color}">
+                                    <div class="card-title">${name}</div>
+                                    <div class="card-row"><span class="file-label">F1:</span> <span>${data.f1}</span></div>
+                                    <div class="card-row"><span class="file-label">F2:</span> <span>${data.f2}</span></div>
+                                </div>`;
                             }
                             container.innerHTML = html;
                             moveCursors(timeSec);
@@ -349,21 +339,46 @@
             document.querySelectorAll('.panel-content').forEach(p => p.style.display = 'none');
             document.getElementById(id).style.display = 'block';
             document.getElementById('main-wrapper').classList.add('shifted');
-            // Esperamos 300ms a que termine la animación
-            setTimeout(() => {
-                map.invalidateSize();
-                chart.resize();
-                chart.update(); // Forzar repintado
-            }, 350);
+            setTimeout(() => { map.invalidateSize(); chart.resize(); chart.update(); }, 350);
         };
 
         window.closePanels = () => {
             document.getElementById('main-wrapper').classList.remove('shifted');
-            setTimeout(() => {
-                map.invalidateSize();
-                chart.resize();
-                chart.update(); // Forzar repintado
-            }, 350);
+            setTimeout(() => { map.invalidateSize(); chart.resize(); chart.update(); }, 350);
+        };
+
+        window.exportToCSV = (key) => {
+            const data = dataStore[key];
+            if (!data || data.length === 0) {
+                alert("Carga un archivo primero");
+                return;
+            }
+
+            // 1. Obtener todas las cabeceras únicas de todos los registros
+            const headerSet = new Set();
+            data.forEach(row => Object.keys(row).forEach(h => headerSet.add(h)));
+            const headers = Array.from(headerSet);
+
+            // 2. Crear las filas
+            const csvRows = [];
+            csvRows.push(headers.join(',')); // Cabecera
+
+            for (const row of data) {
+                const values = headers.map(header => {
+                    const val = row[header] !== undefined ? row[header] : "";
+                    // Escapar strings que contengan comas
+                    return typeof val === 'string' ? `"${val}"` : val;
+                });
+                csvRows.push(values.join(','));
+            }
+
+            // 3. Descarga
+            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `full_export_${key}.csv`;
+            link.click();
         };
 
         async function processFit(file, key) {
@@ -371,134 +386,114 @@
             const buffer = await file.arrayBuffer();
             const decoder = new Decoder(Stream.fromByteArray(new Uint8Array(buffer)));
             const { messages } = decoder.read();
-            const records = (messages.recordMesgs || []).filter(m => m.positionLat);
+            const records = messages.recordMesgs || [];
             if (!records.length) return;
 
             const startT = records[0].timestamp.getTime();
+            let lastLat = null, lastLng = null;
+
             dataStore[key] = records.map(m => {
+                if (m.positionLat && m.positionLong) {
+                    lastLat = m.positionLat * (180 / 2147483648);
+                    lastLng = m.positionLong * (180 / 2147483648);
+                }
+
+                // Objeto base con tiempo y posición
                 const obj = {
-                    t: (m.timestamp.getTime() - startT) / 1000,
-                    lat: m.positionLat * (180 / 2147483648),
-                    lng: m.positionLong * (180 / 2147483648)
+                    t_relative: (m.timestamp.getTime() - startT) / 1000,
+                    timestamp: m.timestamp.toISOString(),
+                    lat: lastLat,
+                    lng: lastLng
                 };
 
+                // Iterar por todas las propiedades del mensaje FIT
                 for (let k in m) {
-                    if (typeof m[k] === 'number') {
-                        // Conversión de speed: de m/s a km/h
-                        if (k === 'speed') {
-                            obj[k] = parseFloat((m[k] * 3.6).toFixed(2));
-                        } else {
-                            obj[k] = m[k];
-                        }
+                    if (k === 'positionLat' || k === 'positionLong' || k === 'timestamp') continue;
+
+                    let val = m[k];
+                    // Conversión específica de velocidad si es el campo speed
+                    if (k === 'speed' && typeof val === 'number') {
+                        obj['speed_kmh'] = parseFloat((val * 3.6).toFixed(2));
                     }
+                    obj[k] = val;
                 }
                 return obj;
             });
 
-            drawRoute(key);
             buildMetricSelectors();
             window.updateChartGlobal();
         }
 
-        function drawRoute(key) {
-            layers[key].clearLayers();
-            const off = key === 'f2' ? parseFloat(document.getElementById('offset').value) || 0 : 0;
-            const color = key === 'f1' ? 'blue' : 'red';
-
-            // Filtramos puntos: si el offset es 10, solo mostramos puntos de F2 desde t=10 en adelante
-            // (o si es negativo, desde que el tiempo resultante sea >= 0)
-            const pts = dataStore[key]
-                .filter(d => (d.t + (key === 'f2' ? off : 0)) >= 0)
-                .map(d => [d.lat, d.lng]);
-
-            if (pts.length > 0) {
-                L.polyline(pts, { color: color, weight: 3 }).addTo(layers[key]);
-                const allVisiblePts = [
-                    ...dataStore.f1.map(d => [d.lat, d.lng]),
-                    ...dataStore.f2.filter(d => d.t + off >= 0).map(d => [d.lat, d.lng])
-                ];
-                if (allVisiblePts.length) map.fitBounds(L.latLngBounds(allVisiblePts));
-            }
-        }
-
-        function buildMetricSelectors() {
-            const div = document.getElementById('metrics');
-            const keys = new Set();
-            [...dataStore.f1, ...dataStore.f2].forEach(r => Object.keys(r).forEach(k => { if (!['t', 'lat', 'lng'].includes(k)) keys.add(k); }));
-            div.innerHTML = Array.from(keys).sort().map(m => {
-                if (!paramColors[m]) paramColors[m] = '#999';
-                return `<div class="metric-item">
-                    <input type="checkbox" value="${m}" ${m === 'heartRate' ? 'checked' : ''} onchange="window.updateChartGlobal()">
-                    <input type="color" value="${paramColors[m]}" oninput="window.updateParamColor('${m}', this.value)">
-                    <span>${m}</span>
-                </div>`;
-            }).join('');
-        }
-
-        window.updateParamColor = (m, c) => { paramColors[m] = c; window.updateChartGlobal(); };
-
         window.updateChartGlobal = () => {
             const off = parseFloat(document.getElementById('offset').value) || 0;
             const selected = Array.from(document.querySelectorAll('#metrics input[type="checkbox"]:checked')).map(i => i.value);
-
             chart.data.datasets = [];
             const newScales = { x: chart.options.scales.x };
 
             selected.forEach((m, i) => {
-                const color = paramColors[m];
+                const color = paramColors[m] || '#999';
                 const axisId = `y-${m}`;
-                newScales[axisId] = {
-                    type: 'linear', display: true, position: 'left',
-                    ticks: { color: color }, grid: { drawOnChartArea: i === 0 },
-                    afterDataLimits: (axis) => {
-                        const range = axis.max - axis.min;
-                        const p = range === 0 ? 1 : range * 0.5;
-                        axis.min -= p; axis.max += p;
-                    }
-                };
-
+                newScales[axisId] = { type: 'linear', display: true, position: 'left', ticks: { color: color }, grid: { drawOnChartArea: i === 0 } };
                 ['f1', 'f2'].forEach(key => {
                     if (dataStore[key].length) {
                         const o = key === 'f2' ? off : 0;
-                        // FILTRO: Solo datos donde el tiempo con offset sea >= 0
-                        const filteredData = dataStore[key]
-                            .filter(d => (d.t + o) >= 0)
-                            .map(d => ({ x: d.t + o, y: d[m] }));
-
+                        const filtered = dataStore[key].filter(d => (d.t + o) >= 0);
                         chart.data.datasets.push({
                             label: `${key.toUpperCase()} ${m}`,
-                            data: filteredData,
-                            borderColor: color, yAxisID: axisId, pointRadius: 0, borderWidth: 2,
-                            borderDash: key === 'f2' ? [5, 5] : []
+                            data: filtered.map(d => ({ x: d.t + o, y: d[m] })),
+                            borderColor: color, yAxisID: axisId, pointRadius: 0, borderWidth: 2, borderDash: key === 'f2' ? [5, 5] : []
                         });
                     }
                 });
             });
             chart.options.scales = newScales;
             chart.update();
-
-            // También refrescamos el mapa para que elimine los puntos sobrantes
-            drawRoute('f1');
-            drawRoute('f2');
+            ['f1', 'f2'].forEach(k => drawRoute(k, 999999));
         };
+
+        function drawRoute(key, limitT) {
+            layers[key].clearLayers();
+            const off = key === 'f2' ? parseFloat(document.getElementById('offset').value) || 0 : 0;
+            const pts = dataStore[key].filter(d => (d.t + off) >= 0 && (d.t + off) <= limitT).filter(d => d.lat !== null).map(d => [d.lat, d.lng]);
+            if (pts.length) {
+                L.polyline(pts, { color: key === 'f1' ? 'blue' : 'red', weight: 3 }).addTo(layers[key]);
+            }
+        }
+
+        function buildMetricSelectors() {
+            const div = document.getElementById('metrics'), keys = new Set();
+            [...dataStore.f1, ...dataStore.f2].forEach(r => Object.keys(r).forEach(k => { if (!['t', 'lat', 'lng'].includes(k)) keys.add(k); }));
+            const currentChecked = Array.from(document.querySelectorAll('#metrics input[type="checkbox"]:checked')).map(i => i.value);
+            div.innerHTML = Array.from(keys).sort().map(m => {
+                const isChecked = currentChecked.length > 0 ? currentChecked.includes(m) : (m === 'heartRate' || m === 'speed');
+                return `<div class="metric-item">
+                    <input type="checkbox" value="${m}" ${isChecked ? 'checked' : ''} onchange="window.updateChartGlobal()">
+                    <input type="color" value="${paramColors[m] || '#999'}" oninput="window.updateParamColor('${m}', this.value)">
+                    <span>${m}</span>
+                </div>`}).join('');
+        }
 
         function moveCursors(t) {
             const off = parseFloat(document.getElementById('offset').value) || 0;
             ['f1', 'f2'].forEach(key => {
                 if (!dataStore[key].length) return;
                 const o = key === 'f2' ? off : 0;
-                const c = dataStore[key].reduce((a, b) => Math.abs((a.t + o) - t) < Math.abs((b.t + o) - t) ? a : b);
-                cursors[key].setLatLng([c.lat, c.lng]);
+                drawRoute(key, t);
+                const valid = dataStore[key].filter(d => (d.t + o) >= 0);
+                if (!valid.length) return;
+                const c = (t > valid[valid.length - 1].t + o) ? valid[valid.length - 1] : valid.reduce((a, b) => Math.abs((a.t + o) - t) < Math.abs((b.t + o) - t) ? a : b);
+                if (c && c.lat) cursors[key].setLatLng([c.lat, c.lng]).setOpacity(1);
+                else cursors[key].setOpacity(0);
             });
         }
 
+        window.updateParamColor = (m, c) => { paramColors[m] = c; window.updateChartGlobal(); };
         document.getElementById('file1').onchange = e => processFit(e.target.files[0], 'f1');
         document.getElementById('file2').onchange = e => processFit(e.target.files[0], 'f2');
         document.getElementById('offset').oninput = window.updateChartGlobal;
         document.getElementById('zoomIn').onclick = () => chart.zoom(1.1);
         document.getElementById('zoomOut').onclick = () => chart.zoom(0.9);
         document.getElementById('resetZoom').onclick = () => chart.resetZoom();
-
         window.openPanel('panel-files');
     </script>
 </body>
