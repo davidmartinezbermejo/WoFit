@@ -1,218 +1,44 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <meta charset="UTF-8">
     <title>FIT Sync Pro</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <style>
-        :root {
-            --panel-width: 300px;
-        }
-
-        body {
-            font-family: sans-serif;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-            background: #1a1a1a;
-        }
-
-        .toolbar {
-            background: #2c3e50;
-            color: white;
-            padding: 10px;
-            display: flex;
-            gap: 20px;
-            z-index: 2001;
-            border-bottom: 1px solid #34495e;
-            position: relative;
-        }
-
-        .tool-button {
-            cursor: pointer;
-            font-size: 1.1rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        #main-wrapper {
-            display: flex;
-            flex: 1;
-            width: calc(100% + var(--panel-width));
-            transition: transform 0.3s ease;
-            transform: translateX(calc(-1 * var(--panel-width)));
-        }
-
-        #main-wrapper.shifted {
-            transform: translateX(0);
-        }
-
-        .side-panel {
-            width: var(--panel-width);
-            height: 100%;
-            background: #2c3e50;
-            color: white;
-            padding: 20px;
-            box-sizing: border-box;
-            flex-shrink: 0;
-            border-right: 1px solid #444;
-            position: relative;
-        }
-
-        .panel-content {
-            position: relative;
-            width: 100%;
-        }
-
-        .close-btn {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            cursor: pointer;
-            color: #bdc3c7;
-            font-size: 1.4rem;
-            padding: 5px;
-            z-index: 10;
-        }
-
-        #content-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            background: #fff;
-            width: 100vw;
-        }
-
-        #map {
-            height: 45vh;
-            width: 100%;
-            flex-shrink: 0;
-        }
-
-        .bottom-section {
-            flex: 1;
-            display: flex;
-            overflow: hidden;
-            border-top: 2px solid #2c3e50;
-        }
-
-        .chart-container {
-            width: 80%;
-            position: relative;
-            padding: 10px 10px 45px 10px;
-            box-sizing: border-box;
-        }
-
-        .data-info-panel {
-            width: 20%;
-            background: #f8f9fa;
-            border-left: 1px solid #ddd;
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            overflow-y: auto;
-        }
-
-        .zoom-controls {
-            display: flex;
-            gap: 5px;
-        }
-
-        .zoom-controls button {
-            flex: 1;
-            padding: 8px;
-            cursor: pointer;
-            background: #2c3e50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-weight: bold;
-        }
-
-        #tooltip-data {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            justify-content: space-between;
-        }
-
-        .data-card {
-            width: 48%;
-            display: flex;
-            flex-direction: column;
-            padding: 8px;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            border-left: 4px solid #ccc;
-            box-sizing: border-box;
-        }
-
-        .card-title {
-            font-size: 10px;
-            font-weight: bold;
-            color: #555;
-            text-transform: uppercase;
-            border-bottom: 1px solid #eee;
-            margin-bottom: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .card-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            color: #333;
-        }
-
-        .card-row .file-label {
-            font-weight: bold;
-            color: #888;
-            font-size: 10px;
-        }
-
-        .time-display {
-            width: 100%;
-            font-size: 20px;
-            font-weight: bold;
-            text-align: center;
-            color: #2c3e50;
-            padding: 8px;
-            background: #eef2f7;
-            border-radius: 4px;
-            border: 1px solid #d1d9e4;
-            box-sizing: border-box;
-        }
-
-        .metric-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px;
-            background: #34495e;
-            border-radius: 4px;
-            font-size: 13px;
-            margin-bottom: 8px;
-            color: white;
-        }
+        :root { --panel-width: 300px; }
+        body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #1a1a1a; }
+        .toolbar { background: #2c3e50; color: white; padding: 10px; display: flex; gap: 20px; z-index: 2001; border-bottom: 1px solid #34495e; position: relative; }
+        .tool-button { cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
+        
+        #main-wrapper { display: flex; flex: 1; width: calc(100% + var(--panel-width)); transition: transform 0.3s ease; transform: translateX(calc(-1 * var(--panel-width))); height: calc(100vh - 45px); }
+        #main-wrapper.shifted { transform: translateX(0); }
+        
+        .side-panel { width: var(--panel-width); height: 100%; background: #2c3e50; color: white; padding: 20px; box-sizing: border-box; flex-shrink: 0; border-right: 1px solid #444; position: relative; }
+        .panel-content { position: relative; width: 100%; }
+        .close-btn { position: absolute; top: -5px; right: -5px; cursor: pointer; color: #bdc3c7; font-size: 1.4rem; padding: 5px; z-index: 10; }
+        
+        #content-area { flex: 1; display: flex; flex-direction: column; height: 100%; background: #fff; width: 100vw; overflow: hidden; }
+        #map { height: 40vh; width: 100%; flex-shrink: 0; }
+        .bottom-section { flex: 1; display: flex; overflow: hidden; border-top: 2px solid #2c3e50; min-height: 0; }
+        
+        .chart-container { width: 80%; height: 100%; padding: 10px; box-sizing: border-box; display: flex; flex-direction: column; }
+        canvas#mainChart { flex: 1; width: 100% !important; height: 100% !important; }
+        
+        .data-info-panel { width: 20%; background: #f8f9fa; border-left: 1px solid #ddd; padding: 15px; overflow-y: auto; }
+        .data-card { width: 48%; padding: 8px; background: white; border: 1px solid #ddd; border-radius: 4px; border-left: 4px solid #ccc; box-sizing: border-box; margin-bottom: 5px; }
+        .card-title { font-size: 10px; font-weight: bold; color: #555; text-transform: uppercase; }
+        .card-row { display: flex; justify-content: space-between; font-size: 11px; }
+        .time-display { width: 100%; font-size: 18px; font-weight: bold; text-align: center; background: #eef2f7; padding: 8px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #d1d9e4; }
+        
+        .metric-item { display: flex; align-items: center; gap: 10px; padding: 8px; background: #34495e; border-radius: 4px; margin-bottom: 5px; color: white; font-size: 12px; }
+        .metric-item input[type="color"] { border: none; width: 25px; height: 25px; background: none; cursor: pointer; padding: 0; }
     </style>
 </head>
-
 <body>
     <div class="toolbar">
-        <div class="tool-button" onclick="openPanel('panel-files')"><i class="fas fa-file-import"></i>
-            <span>Archivos</span></div>
-        <div class="tool-button" onclick="openPanel('panel-metrics')"><i class="fas fa-chart-line"></i>
-            <span>Parámetros</span></div>
+        <div class="tool-button" onclick="openPanel('panel-files')"><i class="fas fa-file-import"></i> <span>Archivos</span></div>
+        <div class="tool-button" onclick="openPanel('panel-metrics')"><i class="fas fa-chart-line"></i> <span>Métricas</span></div>
     </div>
 
     <div id="main-wrapper">
@@ -222,17 +48,16 @@
                 <h3>Archivos y Offset</h3>
                 <input type="file" id="file1" style="width:100%; margin-bottom:10px;">
                 <input type="file" id="file2" style="width:100%; margin-bottom:10px;">
-                <label style="font-size:12px">Offset F2 (seg):</label>
-                <input type="number" id="offset" value="0" style="width:100%">
-
-                <div style="margin-top: 20px; display: flex; gap: 5px;">
-                    <button onclick="exportToCSV('f1')" style="flex:1; padding:8px; cursor:pointer;">CSV F1</button>
-                    <button onclick="exportToCSV('f2')" style="flex:1; padding:8px; cursor:pointer;">CSV F2</button>
+                <label>Offset F2 (seg):</label>
+                <input type="number" id="offset" value="0" style="width:100%; margin-bottom: 20px;">
+                <div style="display: flex; gap: 5px;">
+                    <button onclick="exportToCSV('f1')" style="flex: 1; cursor: pointer;">CSV F1</button>
+                    <button onclick="exportToCSV('f2')" style="flex: 1; cursor: pointer;">CSV F2</button>
                 </div>
             </div>
             <div id="panel-metrics" class="panel-content" style="display:none">
                 <i class="fas fa-times close-btn" onclick="closePanels()"></i>
-                <h3>Métricas y Colores</h3>
+                <h3>Visibilidad y Colores</h3>
                 <div id="metrics"></div>
             </div>
         </aside>
@@ -240,23 +65,10 @@
         <main id="content-area">
             <div id="map"></div>
             <div class="bottom-section">
-                <div class="chart-container">
-                    <canvas id="mainChart"></canvas>
-                </div>
+                <div class="chart-container"><canvas id="mainChart"></canvas></div>
                 <div class="data-info-panel">
-                    <div class="zoom-controls">
-                        <button id="zoomIn">+</button>
-                        <button id="zoomOut">-</button>
-                        <button id="resetZoom">Reset</button>
-                    </div>
                     <div id="tooltip-display">
-                        <h4
-                            style="margin:0 0 10px 0; border-bottom: 1px solid #ccc; padding-bottom: 5px; font-size: 14px;">
-                            Comparativa</h4>
-                        <div id="tooltip-data">
-                            <p style="color:#888; font-size: 12px; text-align: center; width: 100%;">Carga archivos para
-                                comparar</p>
-                        </div>
+                        <div id="tooltip-data"><p>Carga archivos para comparar</p></div>
                     </div>
                 </div>
             </div>
@@ -275,19 +87,27 @@
         const paramColors = { heartRate: '#ff0000', speed: '#0000ff', cadence: '#ffff00', power: '#a020f0', altitude: '#00ff00' };
 
         const formatTime = (s) => {
-            if (isNaN(s) || s < 0) return "00:00:00";
-            const h = Math.floor(s / 3600).toString().padStart(2, '0');
-            const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
-            const sec = Math.floor(s % 60).toString().padStart(2, '0');
+            const totalSeconds = Math.max(0, Math.floor(s));
+            const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+            const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+            const sec = (totalSeconds % 60).toString().padStart(2, '0');
             return `${h}:${m}:${sec}`;
         };
 
         const map = L.map('map').setView([0, 0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        const layers = { f1: L.featureGroup().addTo(map), f2: L.featureGroup().addTo(map) };
+        
+        const fullRoutes = {
+            f1: L.polyline([], {color: 'blue', weight: 3, opacity: 0.3}).addTo(map),
+            f2: L.polyline([], {color: 'red', weight: 3, opacity: 0.3}).addTo(map)
+        };
+        const activeRoutes = {
+            f1: L.polyline([], {color: 'blue', weight: 4}).addTo(map),
+            f2: L.polyline([], {color: 'red', weight: 4}).addTo(map)
+        };
         const cursors = {
-            f1: L.circleMarker([0, 0], { color: 'blue', radius: 6, fillOpacity: 1 }).addTo(map),
-            f2: L.circleMarker([0, 0], { color: 'red', radius: 6, fillOpacity: 1 }).addTo(map)
+            f1: L.circleMarker([0,0], {color: 'blue', radius: 6, fillOpacity: 1, opacity: 1}).addTo(map),
+            f2: L.circleMarker([0,0], {color: 'red', radius: 6, fillOpacity: 1, opacity: 1}).addTo(map)
         };
 
         const ctx = document.getElementById('mainChart').getContext('2d');
@@ -297,33 +117,36 @@
             options: {
                 responsive: true, maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                scales: { x: { type: 'linear', display: true, ticks: { callback: v => formatTime(v) } } },
+                scales: { x: { type: 'linear', ticks: { callback: v => formatTime(v) } } },
                 plugins: {
                     legend: { display: false },
-                    zoom: { zoom: { wheel: { enabled: false }, mode: 'x' }, pan: { enabled: true, mode: 'x' } },
                     tooltip: {
                         enabled: false,
-                        external: function (context) {
+                        external: function(context) {
                             const container = document.getElementById('tooltip-data');
                             if (context.tooltip.opacity === 0) return;
-                            const timeSec = parseFloat(context.tooltip.title[0]);
-                            let html = `<div class="time-display">${formatTime(timeSec)}</div>`;
+                            const timeSec = context.tooltip.dataPoints[0].parsed.x;
+                            
+                            let html = `<div class="time-display">${formatTime(timeSec)}</div><div style="display:flex; flex-wrap:wrap; gap:5px;">`;
                             const groups = {};
+                            
                             context.tooltip.body.forEach((body, i) => {
                                 const ds = chart.data.datasets[i];
-                                const labelParts = ds.label.split(' ');
-                                const fileKey = labelParts[0], metricName = labelParts.slice(1).join(' ');
-                                if (!groups[metricName]) groups[metricName] = { color: ds.borderColor, f1: '---', f2: '---' };
-                                groups[metricName][fileKey.toLowerCase()] = body.lines[0].split(':')[1];
+                                const parts = ds.label.split(' ');
+                                const fileKey = parts[0];
+                                const metric = parts.slice(1).join(' ');
+                                if (!groups[metric]) groups[metric] = { color: ds.borderColor, f1: '---', f2: '---' };
+                                groups[metric][fileKey.toLowerCase()] = body.lines[0].split(':')[1];
                             });
+
                             for (const [name, data] of Object.entries(groups)) {
-                                html += `<div class="data-card" style="border-left-color: ${data.color}">
+                                html += `<div class="data-card" style="border-left-color:${data.color}">
                                     <div class="card-title">${name}</div>
-                                    <div class="card-row"><span class="file-label">F1:</span> <span>${data.f1}</span></div>
-                                    <div class="card-row"><span class="file-label">F2:</span> <span>${data.f2}</span></div>
+                                    <div class="card-row"><span>F1:</span><b>${data.f1}</b></div>
+                                    <div class="card-row"><span>F2:</span><b>${data.f2}</b></div>
                                 </div>`;
                             }
-                            container.innerHTML = html;
+                            container.innerHTML = html + "</div>";
                             moveCursors(timeSec);
                         }
                     }
@@ -331,38 +154,16 @@
             }
         });
 
-        function autoCenterMap() {
-            const allPoints = [];
-            const off = parseFloat(document.getElementById('offset').value) || 0;
-
-            ['f1', 'f2'].forEach(key => {
-                if (dataStore[key].length > 0) {
-                    const o = key === 'f2' ? off : 0;
-                    // Solo consideramos puntos que tengan GPS y que estén dentro del rango visible (offset)
-                    dataStore[key].forEach(d => {
-                        if (d.lat !== null && (d.t + o) >= 0) {
-                            allPoints.push([d.lat, d.lng]);
-                        }
-                    });
-                }
-            });
-
-            if (allPoints.length > 0) {
-                const bounds = L.latLngBounds(allPoints);
-                map.fitBounds(bounds, { padding: [30, 30] }); // El padding deja margen en los bordes
-            }
-        }
-
         window.openPanel = (id) => {
             document.querySelectorAll('.panel-content').forEach(p => p.style.display = 'none');
             document.getElementById(id).style.display = 'block';
             document.getElementById('main-wrapper').classList.add('shifted');
-            setTimeout(() => { map.invalidateSize(); chart.resize(); chart.update(); }, 350);
+            setTimeout(() => { map.invalidateSize(); chart.resize(); chart.update('none'); }, 350);
         };
 
         window.closePanels = () => {
             document.getElementById('main-wrapper').classList.remove('shifted');
-            setTimeout(() => { map.invalidateSize(); chart.resize(); chart.update(); }, 350);
+            setTimeout(() => { map.invalidateSize(); chart.resize(); chart.update('none'); }, 350);
         };
 
         async function processFit(file, key) {
@@ -373,27 +174,28 @@
             const records = messages.recordMesgs || [];
             if (!records.length) return;
 
+            records.sort((a, b) => a.timestamp - b.timestamp);
             const startT = records[0].timestamp.getTime();
-            let lastLat = null, lastLng = null;
 
             dataStore[key] = records.map(m => {
-                if (m.positionLat && m.positionLong) {
-                    lastLat = m.positionLat * (180 / 2147483648);
-                    lastLng = m.positionLong * (180 / 2147483648);
-                }
-                const obj = { t: (m.timestamp.getTime() - startT) / 1000, lat: lastLat, lng: lastLng };
+                const lat = m.positionLat ? m.positionLat * (180/2147483648) : null;
+                const lng = m.positionLong ? m.positionLong * (180/2147483648) : null;
+                const obj = { t: (m.timestamp.getTime() - startT)/1000, lat, lng };
                 for (let k in m) {
                     if (typeof m[k] === 'number') {
-                        obj[k] = (k === 'speed') ? parseFloat((m[k] * 3.6).toFixed(2)) : m[k];
-                    } else {
-                        obj[k] = m[k];
-                    }
+                        obj[k] = (k === 'speed') ? parseFloat((m[k]*3.6).toFixed(2)) : m[k];
+                    } else { obj[k] = m[k]; }
                 }
                 return obj;
             });
             buildMetricSelectors();
             window.updateChartGlobal();
         }
+
+        window.updateParamColor = (metric, color) => {
+            paramColors[metric] = color;
+            window.updateChartGlobal();
+        };
 
         window.updateChartGlobal = () => {
             const off = parseFloat(document.getElementById('offset').value) || 0;
@@ -402,16 +204,15 @@
             const newScales = { x: chart.options.scales.x };
 
             selected.forEach((m, i) => {
-                const color = paramColors[m] || '#999';
+                const color = paramColors[m] || '#999999';
                 const axisId = `y-${m}`;
-                newScales[axisId] = { type: 'linear', display: true, position: 'left', ticks: { color: color }, grid: { drawOnChartArea: i === 0 } };
+                newScales[axisId] = { type: 'linear', position: 'left', display: true, ticks: { color: color }, grid: { drawOnChartArea: i === 0 } };
                 ['f1', 'f2'].forEach(key => {
                     if (dataStore[key].length) {
                         const o = key === 'f2' ? off : 0;
-                        const filtered = dataStore[key].filter(d => (d.t + o) >= 0);
                         chart.data.datasets.push({
                             label: `${key.toUpperCase()} ${m}`,
-                            data: filtered.map(d => ({ x: d.t + o, y: d[m] })),
+                            data: dataStore[key].filter(d => (d.t + o) >= 0).map(d => ({ x: d.t + o, y: d[m] })),
                             borderColor: color, yAxisID: axisId, pointRadius: 0, borderWidth: 2, borderDash: key === 'f2' ? [5, 5] : []
                         });
                     }
@@ -419,70 +220,76 @@
             });
             chart.options.scales = newScales;
             chart.update();
-
-            // Dibujamos rutas completas
-            drawRoute('f1', 999999);
-            drawRoute('f2', 999999);
-
-            // AUTO-ZOOM AQUÍ
             autoCenterMap();
+            ['f1', 'f2'].forEach(key => {
+                const pts = dataStore[key].filter(d => d.lat !== null).map(d => [d.lat, d.lng]);
+                fullRoutes[key].setLatLngs(pts);
+            });
         };
-
-        function drawRoute(key, limitT) {
-            layers[key].clearLayers();
-            const off = key === 'f2' ? parseFloat(document.getElementById('offset').value) || 0 : 0;
-            const pts = dataStore[key].filter(d => (d.t + off) >= 0 && (d.t + off) <= limitT && d.lat !== null).map(d => [d.lat, d.lng]);
-            if (pts.length) L.polyline(pts, { color: key === 'f1' ? 'blue' : 'red', weight: 3 }).addTo(layers[key]);
-        }
-
-        function buildMetricSelectors() {
-            const div = document.getElementById('metrics'), keys = new Set();
-            [...dataStore.f1, ...dataStore.f2].forEach(r => Object.keys(r).forEach(k => { if (!['t', 'lat', 'lng'].includes(k)) keys.add(k); }));
-            const currentChecked = Array.from(document.querySelectorAll('#metrics input[type="checkbox"]:checked')).map(i => i.value);
-            div.innerHTML = Array.from(keys).sort().map(m => {
-                const isChecked = currentChecked.length > 0 ? currentChecked.includes(m) : (m === 'heartRate' || m === 'speed');
-                return `<div class="metric-item">
-                    <input type="checkbox" value="${m}" ${isChecked ? 'checked' : ''} onchange="window.updateChartGlobal()">
-                    <input type="color" value="${paramColors[m] || '#999'}" oninput="window.updateParamColor('${m}', this.value)">
-                    <span>${m}</span>
-                </div>`}).join('');
-        }
 
         function moveCursors(t) {
             const off = parseFloat(document.getElementById('offset').value) || 0;
             ['f1', 'f2'].forEach(key => {
-                if (!dataStore[key].length) return;
+                const data = dataStore[key];
+                if (!data.length) return;
                 const o = key === 'f2' ? off : 0;
-                drawRoute(key, t);
-                const valid = dataStore[key].filter(d => (d.t + o) >= 0);
-                if (!valid.length) return;
-                const c = (t > valid[valid.length - 1].t + o) ? valid[valid.length - 1] : valid.reduce((a, b) => Math.abs((a.t + o) - t) < Math.abs((b.t + o) - t) ? a : b);
-                if (c && c.lat) cursors[key].setLatLng([c.lat, c.lng]).setOpacity(1);
-                else cursors[key].setOpacity(0);
+                
+                // Búsqueda binaria para encontrar el índice del tiempo actual
+                let low = 0, high = data.length - 1, idx = 0;
+                while (low <= high) {
+                    let mid = Math.floor((low + high) / 2);
+                    if (data[mid].t + o <= t) { idx = mid; low = mid + 1; }
+                    else { high = mid - 1; }
+                }
+
+                // Pintar rastro dinámico
+                const ptsActive = data.slice(0, idx + 1).filter(d => d.lat !== null).map(d => [d.lat, d.lng]);
+                activeRoutes[key].setLatLngs(ptsActive);
+
+                // Mover cursor
+                const point = data[idx];
+                if (point && point.lat) {
+                    cursors[key].setLatLng([point.lat, point.lng]);
+                    cursors[key].setStyle({ opacity: 1, fillOpacity: 1 });
+                } else {
+                    cursors[key].setStyle({ opacity: 0, fillOpacity: 0 });
+                }
             });
         }
 
+        function autoCenterMap() {
+            const pts = [];
+            ['f1', 'f2'].forEach(k => dataStore[k].forEach(d => { if(d.lat) pts.push([d.lat, d.lng]); }));
+            if (pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [20, 20] });
+        }
+
         window.exportToCSV = (key) => {
-            const data = dataStore[key];
-            if (!data || !data.length) return alert("Carga un archivo primero");
+            const data = dataStore[key]; if(!data.length) return;
             const headers = Array.from(new Set(data.flatMap(d => Object.keys(d))));
-            const csv = [headers.join(','), ...data.map(d => headers.map(h => typeof d[h] === 'string' ? `"${d[h]}"` : (d[h] ?? "")).join(','))].join('\n');
-            const blob = new Blob([csv], { type: 'text/csv' });
+            const csv = [headers.join(','), ...data.map(d => headers.map(h => d[h] ?? "").join(','))].join('\n');
             const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `full_export_${key}.csv`;
-            link.click();
+            link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+            link.download = `export_${key}.csv`; link.click();
         };
 
-        window.updateParamColor = (m, c) => { paramColors[m] = c; window.updateChartGlobal(); };
+        function buildMetricSelectors() {
+            const div = document.getElementById('metrics'), keys = new Set();
+            [...dataStore.f1, ...dataStore.f2].forEach(r => Object.keys(r).forEach(k => { if(!['t','lat','lng'].includes(k)) keys.add(k); }));
+            const currentChecked = Array.from(document.querySelectorAll('#metrics input[type="checkbox"]:checked')).map(i => i.value);
+            div.innerHTML = Array.from(keys).sort().map(m => {
+                const color = paramColors[m] || '#999999';
+                const isChecked = currentChecked.length > 0 ? currentChecked.includes(m) : (m === 'heartRate' || m === 'speed');
+                return `
+                <div class="metric-item">
+                    <input type="checkbox" value="${m}" ${isChecked?'checked':''} onchange="window.updateChartGlobal()">
+                    <input type="color" value="${color}" oninput="window.updateParamColor('${m}', this.value)">
+                    <span>${m}</span>
+                </div>`}).join('');
+        }
+
         document.getElementById('file1').onchange = e => processFit(e.target.files[0], 'f1');
         document.getElementById('file2').onchange = e => processFit(e.target.files[0], 'f2');
         document.getElementById('offset').oninput = window.updateChartGlobal;
-        document.getElementById('zoomIn').onclick = () => chart.zoom(1.1);
-        document.getElementById('zoomOut').onclick = () => chart.zoom(0.9);
-        document.getElementById('resetZoom').onclick = () => chart.resetZoom();
-        window.openPanel('panel-files');
     </script>
 </body>
-
 </html>
